@@ -1,0 +1,30 @@
+# Java
+**/target/
+*.class
+
+# Node
+**/node_modules/
+**/dist/
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
+# Operating systems
+.DS_Store
+Thumbs.db
+
+# Logs and runtime data
+*.log
+logs/
+data/
+
+# Test reports
+coverage/
+allure-results/
