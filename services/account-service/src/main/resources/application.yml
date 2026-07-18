@@ -1,6 +1,20 @@
 spring:
   application:
     name: account-service
+  datasource:
+    url: ${ACCOUNT_DB_URL:jdbc:postgresql://localhost:5432/ledgerflow_account}
+    username: ${ACCOUNT_DB_USERNAME:ledgerflow}
+    password: ${ACCOUNT_DB_PASSWORD:ledgerflow-local-only}
+  flyway:
+    enabled: true
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
 
 server:
   port: ${SERVER_PORT:8081}
@@ -15,3 +29,6 @@ management:
       probes:
         enabled: true
       show-details: never
+      group:
+        readiness:
+          include: readinessState,db
