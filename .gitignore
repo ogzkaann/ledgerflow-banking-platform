@@ -1,30 +1,47 @@
-# Java
+# Maven and Java
 **/target/
 *.class
+*.jar
+*.war
+*.ear
+dependency-reduced-pom.xml
+.mvn/timing.properties
+hs_err_pid*
+replay_pid*
 
-# Node
-**/node_modules/
-**/dist/
-
-# IDE
+# IDEs and editors
 .idea/
 .vscode/
+.classpath
+.project
+.settings/
 *.iml
+*.iws
+*.ipr
+out/
 
-# Environment and secrets
+# Local configuration and secrets
 .env
 .env.*
 !.env.example
+*.local
+
+# Logs and runtime data
+*.log
+*.pid
+logs/
+data/
+
+# Frontend tooling (planned)
+**/node_modules/
+**/dist/
+**/.cache/
+coverage/
+
+# Test tooling
+allure-results/
 
 # Operating systems
 .DS_Store
 Thumbs.db
-
-# Logs and runtime data
-*.log
-logs/
-data/
-
-# Test reports
-coverage/
-allure-results/
+Desktop.ini
