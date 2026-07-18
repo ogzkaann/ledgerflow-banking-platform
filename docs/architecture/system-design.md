@@ -4,7 +4,7 @@
 
 LedgerFlow demonstrates how to design and implement a resilient money-transfer workflow across independently deployable Java microservices. The project prioritizes correctness, traceability, failure recovery, and explainable engineering decisions over feature volume.
 
-The repository is currently in its foundation phase: service processes and health endpoints build and start, while all banking behavior and infrastructure integrations described below remain planned.
+The repository has completed its foundation and Account Service core phases. Account creation, account reads, immutable credit-ledger history, reconciliation, PostgreSQL persistence, and local/test synthetic funding are operational. Transfer workflows and every other infrastructure integration described below remain planned unless explicitly marked implemented.
 
 ## 2. Scope
 
@@ -45,19 +45,19 @@ Responsibilities:
 
 Responsibilities:
 
-- own accounts and ledger entries;
-- calculate available and reserved balances;
-- reserve funds atomically;
-- settle debit and credit ledger entries;
-- release reservations after rejection or timeout;
-- reject stale or duplicate commands.
+- own accounts, ledger entries, and materialized available/reserved balances (implemented);
+- create and retrieve single-currency accounts (implemented);
+- append synthetic local/test credits atomically with balance updates (implemented);
+- reject duplicate funding references and unsafe mutations (implemented);
+- reconcile signed ledger entries with materialized balances (implemented);
+- reserve, settle, and release funds for transfers (planned).
 
 Key invariant:
 
 ```text
 available_balance >= 0
-available_balance + reserved_balance = materialized_balance
-sum(ledger_entries) = materialized_balance
+reserved_balance >= 0
+sum(credits) - sum(debits) = available_balance + reserved_balance
 ```
 
 ### Transfer Service
@@ -94,7 +94,7 @@ Each service owns a separate PostgreSQL database or schema and may not directly 
 
 | Service | Primary data |
 | --- | --- |
-| Account | accounts, ledger entries, reservations, outbox, processed events |
+| Account | accounts and ledger entries implemented; reservations, outbox, and processed events planned |
 | Transfer | transfers, idempotency mappings, state transitions, outbox, processed events |
 | Risk | risk decisions, rule snapshots, processed events, outbox |
 | Notification | notifications, delivery attempts, processed events |
@@ -157,7 +157,7 @@ Kafka is used for:
 
 ## 9. Target repository structure
 
-Only directories with implemented or documented content are created. The `apps`, `contracts`, and `infra` trees below will be added in their delivery phases rather than kept as empty placeholders.
+Only directories with implemented or documented content are created. The OpenAPI contract and root PostgreSQL Compose model now exist; `apps` and broader `infra` trees will be added only in their delivery phases.
 
 ```text
 ledgerflow-banking-platform/

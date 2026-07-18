@@ -2,6 +2,8 @@
 
 ## Phase 0 — Build and architecture foundation
 
+Status: complete.
+
 - system design and ADRs;
 - verified multi-module Maven workspace and wrapper;
 - minimal service applications and context tests;
@@ -10,11 +12,15 @@
 
 ## Phase 1 — Account and ledger core
 
-- account creation and test funding;
-- immutable ledger entries;
-- available and reserved balances;
-- PostgreSQL migrations and integration tests;
-- optimistic locking and reconciliation checks.
+Status: complete for the defined Account Service capability.
+
+- account creation and local/test-only synthetic funding;
+- immutable ledger entries and materialized available/reserved balances;
+- Flyway-owned PostgreSQL 18.4 schema and Testcontainers integration tests;
+- pessimistic row locking with an additional version column;
+- reconciliation checks, OpenAPI 3.1, and RFC-compatible API errors.
+
+Transfers, reservations, and production funding remain outside Phase 1 and begin only in later phases.
 
 ## Phase 2 — Transfer intake and idempotency
 
