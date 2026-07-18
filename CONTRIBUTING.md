@@ -20,6 +20,8 @@ Every pull request must explain:
 - failure scenarios considered;
 - follow-up work that is intentionally out of scope.
 
+Run `./mvnw clean verify` (or `.\mvnw.cmd clean verify` on Windows) before opening a pull request.
+
 ## Engineering rules
 
 - Do not share service database tables.

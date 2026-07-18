@@ -30,7 +30,7 @@ Services follow ports-and-adapters boundaries:
 - domain code does not depend on Spring;
 - application use cases coordinate domain behavior;
 - adapters implement HTTP, Kafka, persistence, and Redis integration;
-- architectural rules are enforced with ArchUnit.
+- architectural rules will be enforced with ArchUnit once domain and adapter packages exist.
 
 ## Performance targets
 

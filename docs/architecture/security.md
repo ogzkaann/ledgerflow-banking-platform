@@ -10,7 +10,9 @@
 - insecure service-to-service defaults;
 - dependency vulnerabilities.
 
-## Controls
+The current foundation does not configure authentication, authorization, rate limiting, or production secret handling. The controls below are implementation requirements for the phases that expose business APIs and infrastructure.
+
+## Required controls
 
 - OAuth 2.0 / OpenID Connect with JWT validation at the gateway and resource services;
 - ownership checks inside business services, not only at the gateway;

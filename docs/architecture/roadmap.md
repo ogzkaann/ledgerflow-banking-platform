@@ -1,11 +1,12 @@
 # Delivery Roadmap
 
-## Phase 0 — Architecture foundation
+## Phase 0 — Build and architecture foundation
 
 - system design and ADRs;
-- multi-module Maven workspace;
-- coding standards and CI skeleton;
-- local infrastructure topology.
+- verified multi-module Maven workspace and wrapper;
+- minimal service applications and context tests;
+- coding standards and Maven verification CI;
+- accurate local development documentation.
 
 ## Phase 1 — Account and ledger core
 

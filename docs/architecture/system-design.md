@@ -4,6 +4,8 @@
 
 LedgerFlow demonstrates how to design and implement a resilient money-transfer workflow across independently deployable Java microservices. The project prioritizes correctness, traceability, failure recovery, and explainable engineering decisions over feature volume.
 
+The repository is currently in its foundation phase: service processes and health endpoints build and start, while all banking behavior and infrastructure integrations described below remain planned.
+
 ## 2. Scope
 
 ### In scope
@@ -153,7 +155,9 @@ Kafka is used for:
 - Redis unavailability degrades caching but must not invalidate PostgreSQL state.
 - Health endpoints distinguish liveness from readiness.
 
-## 9. Repository structure
+## 9. Target repository structure
+
+Only directories with implemented or documented content are created. The `apps`, `contracts`, and `infra` trees below will be added in their delivery phases rather than kept as empty placeholders.
 
 ```text
 ledgerflow-banking-platform/

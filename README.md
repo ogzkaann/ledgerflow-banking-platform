@@ -1,87 +1,73 @@
 # LedgerFlow
 
-LedgerFlow is a production-style digital banking transaction platform built to demonstrate modern Java backend engineering, resilient microservices, asynchronous messaging, distributed caching, observability, and full-stack integration.
+LedgerFlow is a portfolio project for exploring resilient Java microservice design in a digital-banking domain. The repository currently provides a verified build and five minimal Spring Boot service foundations; it does not implement banking workflows yet.
 
 > **Portfolio scope:** LedgerFlow is an educational system. It does not process real money and is not intended for production banking use.
 
-## What the platform will do
+## Current foundation
 
-A user will be able to:
+The Maven reactor contains these independently packaged applications:
 
-- create and view bank accounts;
-- view available and reserved balances;
-- initiate an account-to-account transfer with an idempotency key;
-- follow the transfer through validation, funds reservation, risk assessment, settlement, rejection, or compensation;
-- inspect operational logs and transfer history through an operations console.
+| Module | Application name | Default port | Current capability |
+| --- | --- | ---: | --- |
+| `api-gateway` | `api-gateway` | 8080 | Reactive Spring Cloud Gateway foundation and health endpoint |
+| `account-service` | `account-service` | 8081 | Spring MVC application foundation and health endpoint |
+| `transfer-service` | `transfer-service` | 8082 | Spring MVC application foundation and health endpoint |
+| `risk-service` | `risk-service` | 8083 | Spring MVC application foundation and health endpoint |
+| `notification-service` | `notification-service` | 8084 | Spring MVC application foundation and health endpoint |
 
-The backend will execute the transfer as a resilient distributed workflow using Kafka events, transactional outboxes, idempotent consumers, PostgreSQL persistence, and Redis-backed request protection.
+Each module has a context-load test. The root build enforces Java and Maven versions, formatting, dependency convergence, unit and integration test lifecycles, and JaCoCo report generation.
 
-## What this project demonstrates
+## Prerequisites
 
-- Java 21 and Spring Boot 4.1 application development;
-- domain-driven service boundaries and clean architecture;
-- Spring Data JPA/Hibernate and PostgreSQL transaction handling;
-- Kafka-based asynchronous communication and event versioning;
-- Redis idempotency, rate limiting, and short-lived caching;
-- optimistic locking, duplicate-message handling, retries, dead-letter topics, and compensation;
-- JSON structured logging and Elastic Stack observability;
-- unit, integration, contract, and end-to-end testing with Testcontainers;
-- React-based operational UI integration;
-- Docker Compose local infrastructure and GitHub Actions continuous integration.
+- Java 25 LTS
+- Git
+- A network connection for the Maven Wrapper's first run
 
-## Planned services
+A system Maven installation is not required. Docker, PostgreSQL, Kafka, Redis, and Node.js are not required for the current foundation.
 
-| Service | Responsibility |
-| --- | --- |
-| `api-gateway` | Edge routing, authentication enforcement, correlation IDs, and rate limiting |
-| `account-service` | Accounts, immutable ledger entries, balance reservations, and settlement |
-| `transfer-service` | Transfer lifecycle, saga coordination, idempotency, and status APIs |
-| `risk-service` | Deterministic risk rules and transfer approval decisions |
-| `notification-service` | Terminal transfer notifications and delivery audit |
-| `operations-console` | React UI for account, transfer, and operational visibility |
+## Build and test
 
-## Core transfer flow
+On macOS, Linux, or Git Bash:
 
-```mermaid
-sequenceDiagram
-    actor Client
-    participant Gateway
-    participant Transfer as Transfer Service
-    participant Kafka
-    participant Account as Account Service
-    participant Risk as Risk Service
-    participant Notification as Notification Service
-
-    Client->>Gateway: POST /api/transfers + Idempotency-Key
-    Gateway->>Transfer: Create transfer
-    Transfer->>Transfer: Persist PENDING + outbox event
-    Transfer-->>Client: 202 Accepted
-    Transfer->>Kafka: TransferInitiated
-    Kafka->>Account: TransferInitiated
-    Account->>Account: Reserve funds atomically
-    Account->>Kafka: FundsReserved / FundsReservationFailed
-    Kafka->>Risk: FundsReserved
-    Risk->>Kafka: RiskApproved / RiskRejected
-    Kafka->>Account: RiskApproved / RiskRejected
-    Account->>Account: Settle or release reservation
-    Account->>Kafka: FundsSettled / FundsReleased
-    Kafka->>Transfer: Terminal account event
-    Transfer->>Transfer: Mark COMPLETED / REJECTED
-    Transfer->>Kafka: TransferCompleted / TransferRejected
-    Kafka->>Notification: Terminal transfer event
+```bash
+./mvnw clean verify
+./mvnw test
 ```
+
+On Windows PowerShell:
+
+```powershell
+.\mvnw.cmd clean verify
+.\mvnw.cmd test
+```
+
+Run a service from the repository root, for example:
+
+```bash
+./mvnw -pl services/account-service spring-boot:run
+```
+
+Then query `http://localhost:8081/actuator/health`. See the [local development guide](docs/development/local-development.md) for all module commands and Windows equivalents.
+
+## Planned architecture
+
+Later phases will add account and transfer domain behavior, database-per-service persistence, Kafka with transactional outboxes, Redis-backed protective controls, security, observability, containerized local infrastructure, and a React operations console. Those capabilities are architecture decisions and roadmap items, not current runtime claims.
+
+No database drivers, migration engine, message broker clients, or Redis clients are included in service modules yet. They will be introduced with executable configuration, migrations, and integration tests in the relevant delivery phase.
 
 ## Documentation
 
+- [Local development](docs/development/local-development.md)
+- [Verified technology stack](docs/technology-stack.md)
 - [System design](docs/architecture/system-design.md)
 - [Quality attributes](docs/architecture/quality-attributes.md)
 - [Event model](docs/architecture/event-model.md)
 - [Testing strategy](docs/architecture/testing-strategy.md)
 - [Security model](docs/architecture/security.md)
 - [Delivery roadmap](docs/architecture/roadmap.md)
-- [Technology decisions](docs/technology-stack.md)
 - [Architecture Decision Records](docs/adr/)
 
 ## Repository status
 
-The repository is being built incrementally. Every delivery stage must include automated tests, documentation updates, and a focused commit.
+Phase 0 establishes the build, application skeletons, developer workflow, and continuous verification. Business features and local infrastructure are intentionally deferred.
