@@ -35,6 +35,8 @@ public abstract class TransferIntegrationTest {
         registry.add("spring.datasource.password", POSTGRES::getPassword);
         registry.add("spring.data.redis.host", REDIS::getHost);
         registry.add("spring.data.redis.port", () -> REDIS.getMappedPort(6379));
+        registry.add("ledgerflow.kafka.listener-enabled", () -> "false");
+        registry.add("ledgerflow.outbox.scheduling-enabled", () -> "false");
     }
 
     @Autowired
@@ -46,6 +48,7 @@ public abstract class TransferIntegrationTest {
     @BeforeEach
     void cleanStores() {
         jdbc.update("DELETE FROM outbox_events");
+        jdbc.update("DELETE FROM processed_events");
         jdbc.update("DELETE FROM idempotency_records");
         jdbc.update("DELETE FROM transfer_state_history");
         jdbc.update("DELETE FROM transfers");

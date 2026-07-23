@@ -8,4 +8,6 @@ public interface TransferRepository {
     Transfer save(Transfer transfer);
 
     Optional<Transfer> findById(TransferId id);
+
+    Optional<Transfer> findByIdForUpdate(TransferId id);
 }

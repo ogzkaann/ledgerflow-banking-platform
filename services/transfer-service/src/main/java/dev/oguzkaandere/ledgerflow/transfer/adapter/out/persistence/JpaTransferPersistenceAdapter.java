@@ -11,6 +11,7 @@ import dev.oguzkaandere.ledgerflow.transfer.domain.model.TransferInitiatedEvent;
 import dev.oguzkaandere.ledgerflow.transfer.domain.model.TransferReference;
 import dev.oguzkaandere.ledgerflow.transfer.domain.model.TransferStateTransition;
 import dev.oguzkaandere.ledgerflow.transfer.domain.model.TransferStatus;
+import dev.oguzkaandere.ledgerflow.transfer.domain.model.WorkflowOutboxEvent;
 import dev.oguzkaandere.ledgerflow.transfer.domain.port.IdempotencyRepository;
 import dev.oguzkaandere.ledgerflow.transfer.domain.port.OutboxRepository;
 import dev.oguzkaandere.ledgerflow.transfer.domain.port.TransferHistoryRepository;
@@ -20,6 +21,7 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
+import jakarta.persistence.LockModeType;
 import jakarta.persistence.Table;
 import jakarta.persistence.Version;
 import java.math.BigDecimal;
@@ -32,9 +34,11 @@ import org.hibernate.type.SqlTypes;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
-import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
 @Repository
@@ -66,12 +70,23 @@ class JpaTransferPersistenceAdapter
 
     @Override
     public Transfer save(Transfer transfer) {
-        return transfers.saveAndFlush(TransferJpaEntity.fromDomain(transfer)).toDomain();
+        TransferJpaEntity entity = transfers.findById(transfer.id().value()).orElse(null);
+        if (entity == null) {
+            entity = TransferJpaEntity.fromDomain(transfer);
+        } else {
+            entity.updateFromDomain(transfer);
+        }
+        return transfers.saveAndFlush(entity).toDomain();
     }
 
     @Override
     public Optional<Transfer> findById(TransferId id) {
         return transfers.findById(id.value()).map(TransferJpaEntity::toDomain);
+    }
+
+    @Override
+    public Optional<Transfer> findByIdForUpdate(TransferId id) {
+        return transfers.findByIdForUpdate(id.value()).map(TransferJpaEntity::toDomain);
     }
 
     @Override
@@ -116,9 +131,24 @@ class JpaTransferPersistenceAdapter
                 event.transfer().correlationId(),
                 event.eventId());
     }
+
+    @Override
+    public void save(WorkflowOutboxEvent event) {
+        outbox.saveAndFlush(OutboxEventJpaEntity.fromDomain(event, objectMapper));
+        LOGGER.info(
+                "outbox_event_created transferId={} correlationId={} eventId={} eventType={} status=PENDING",
+                event.transfer().id(),
+                event.transfer().correlationId(),
+                event.eventId(),
+                event.eventType());
+    }
 }
 
-interface SpringDataTransferRepository extends JpaRepository<TransferJpaEntity, UUID> {}
+interface SpringDataTransferRepository extends JpaRepository<TransferJpaEntity, UUID> {
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select transfer from TransferJpaEntity transfer where transfer.id = :id")
+    Optional<TransferJpaEntity> findByIdForUpdate(@Param("id") UUID id);
+}
 
 interface SpringDataHistoryRepository extends JpaRepository<TransferHistoryJpaEntity, UUID> {
     List<TransferHistoryJpaEntity> findByTransferIdOrderBySequenceAsc(UUID transferId);
@@ -187,6 +217,17 @@ class TransferJpaEntity {
         entity.createdAt = value.createdAt();
         entity.updatedAt = value.updatedAt();
         return entity;
+    }
+
+    void updateFromDomain(Transfer value) {
+        sourceAccountId = value.sourceAccountId();
+        destinationAccountId = value.destinationAccountId();
+        amount = value.money().amount();
+        currency = value.money().currency();
+        reference = value.reference().value();
+        status = value.status();
+        correlationId = value.correlationId().value();
+        updatedAt = value.updatedAt();
     }
 
     Transfer toDomain() {
@@ -321,7 +362,7 @@ class OutboxEventJpaEntity {
 
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(nullable = false, columnDefinition = "jsonb")
-    JsonNode payload;
+    String payload;
 
     @Column(nullable = false, length = 20)
     String status;
@@ -360,7 +401,31 @@ class OutboxEventJpaEntity {
         entity.aggregateId = transfer.id().value();
         entity.eventType = TransferInitiatedEvent.EVENT_TYPE;
         entity.eventVersion = TransferInitiatedEvent.EVENT_VERSION;
-        entity.payload = mapper.valueToTree(payload);
+        entity.payload = mapper.writeValueAsString(payload);
+        entity.status = "PENDING";
+        entity.occurredAt = event.occurredAt();
+        entity.publishAttemptCount = 0;
+        return entity;
+    }
+
+    static OutboxEventJpaEntity fromDomain(WorkflowOutboxEvent event, ObjectMapper mapper) {
+        Transfer transfer = event.transfer();
+        var payload = new EventEnvelope(
+                event.eventId(),
+                event.eventType(),
+                1,
+                event.occurredAt(),
+                transfer.correlationId().value(),
+                event.causationId(),
+                "transfer-service",
+                event.payload());
+        OutboxEventJpaEntity entity = new OutboxEventJpaEntity();
+        entity.eventId = event.eventId();
+        entity.aggregateType = "TRANSFER";
+        entity.aggregateId = transfer.id().value();
+        entity.eventType = event.eventType();
+        entity.eventVersion = 1;
+        entity.payload = mapper.writeValueAsString(payload);
         entity.status = "PENDING";
         entity.occurredAt = event.occurredAt();
         entity.publishAttemptCount = 0;
@@ -375,7 +440,7 @@ class OutboxEventJpaEntity {
             String correlationId,
             String causationId,
             String producer,
-            EventPayload payload) {}
+            Object payload) {}
 
     private record EventPayload(
             UUID transferId,

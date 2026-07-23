@@ -173,7 +173,7 @@ class TransferApiIT extends TransferIntegrationTest {
     void flywaySchemaValidationAndOutboxEnvelopeAreRealPostgresJsonb() throws Exception {
         create("schema-key", REQUEST, null, 202);
         assertThat(jdbc.queryForObject("SELECT count(*) FROM flyway_schema_history WHERE success", Integer.class))
-                .isEqualTo(1);
+                .isEqualTo(2);
         assertThat(jdbc.queryForObject("SELECT payload ->> 'eventType' FROM outbox_events", String.class))
                 .isEqualTo("ledgerflow.transfer.initiated.v1");
         assertThat(jdbc.queryForObject("SELECT payload #>> '{payload,amount}' FROM outbox_events", String.class))
