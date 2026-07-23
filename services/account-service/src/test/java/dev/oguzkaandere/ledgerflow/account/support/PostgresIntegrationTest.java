@@ -27,6 +27,8 @@ public abstract class PostgresIntegrationTest {
         registry.add("spring.datasource.url", POSTGRES::getJdbcUrl);
         registry.add("spring.datasource.username", POSTGRES::getUsername);
         registry.add("spring.datasource.password", POSTGRES::getPassword);
+        registry.add("ledgerflow.kafka.listener-enabled", () -> "false");
+        registry.add("ledgerflow.outbox.scheduling-enabled", () -> "false");
     }
 
     @Autowired
@@ -34,6 +36,9 @@ public abstract class PostgresIntegrationTest {
 
     @BeforeEach
     void cleanDatabase() {
+        jdbcTemplate.update("DELETE FROM outbox_events");
+        jdbcTemplate.update("DELETE FROM processed_events");
+        jdbcTemplate.update("DELETE FROM transfer_reservations");
         jdbcTemplate.update("DELETE FROM ledger_entries");
         jdbcTemplate.update("DELETE FROM accounts");
     }

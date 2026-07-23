@@ -28,4 +28,9 @@ public record LedgerEntry(
             UUID ledgerEntryId, AccountId accountId, Money amount, LedgerReference reference, Instant createdAt) {
         return new LedgerEntry(ledgerEntryId, accountId, LedgerEntryType.CREDIT, amount, reference, createdAt);
     }
+
+    public static LedgerEntry debit(
+            UUID ledgerEntryId, AccountId accountId, Money amount, LedgerReference reference, Instant createdAt) {
+        return new LedgerEntry(ledgerEntryId, accountId, LedgerEntryType.DEBIT, amount, reference, createdAt);
+    }
 }

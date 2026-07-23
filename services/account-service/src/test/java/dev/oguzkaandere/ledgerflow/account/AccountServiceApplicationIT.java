@@ -12,6 +12,6 @@ class AccountServiceApplicationIT extends PostgresIntegrationTest {
         Integer migrationCount =
                 jdbcTemplate.queryForObject("SELECT count(*) FROM flyway_schema_history WHERE success", Integer.class);
 
-        assertThat(migrationCount).isEqualTo(1);
+        assertThat(migrationCount).isEqualTo(2);
     }
 }

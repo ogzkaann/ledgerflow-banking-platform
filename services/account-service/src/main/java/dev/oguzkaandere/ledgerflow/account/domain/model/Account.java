@@ -65,4 +65,53 @@ public record Account(
                 createdAt,
                 updatedAt);
     }
+
+    public Account reserve(Money amount, Instant updatedAt) {
+        requireMutable(amount);
+        return new Account(
+                id,
+                ownerReference,
+                currency,
+                status,
+                availableBalance.subtract(amount),
+                reservedBalance.add(amount),
+                version,
+                createdAt,
+                updatedAt);
+    }
+
+    public Account release(Money amount, Instant updatedAt) {
+        requireMutable(amount);
+        return new Account(
+                id,
+                ownerReference,
+                currency,
+                status,
+                availableBalance.add(amount),
+                reservedBalance.subtract(amount),
+                version,
+                createdAt,
+                updatedAt);
+    }
+
+    public Account settleReserved(Money amount, Instant updatedAt) {
+        requireMutable(amount);
+        return new Account(
+                id,
+                ownerReference,
+                currency,
+                status,
+                availableBalance,
+                reservedBalance.subtract(amount),
+                version,
+                createdAt,
+                updatedAt);
+    }
+
+    private void requireMutable(Money amount) {
+        if (!status.allowsMutation()) {
+            throw new AccountStateException(id, status);
+        }
+        availableBalance.requireSameCurrency(amount);
+    }
 }

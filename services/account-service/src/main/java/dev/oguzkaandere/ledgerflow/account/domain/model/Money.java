@@ -47,6 +47,14 @@ public record Money(BigDecimal amount, SupportedCurrency currency) {
         return new Money(amount.add(other.amount), currency);
     }
 
+    public Money subtract(Money other) {
+        requireSameCurrency(other);
+        if (amount.compareTo(other.amount) < 0) {
+            throw new InvalidMoneyException("Balance must not become negative");
+        }
+        return new Money(amount.subtract(other.amount), currency);
+    }
+
     public void requireSameCurrency(Money other) {
         Objects.requireNonNull(other, "Money is required");
         if (currency != other.currency) {
