@@ -1,6 +1,6 @@
 # LedgerFlow
 
-LedgerFlow is a portfolio project for exploring resilient Java microservice design in a digital-banking domain. The repository provides a verified multi-module build, five Spring Boot service processes, and a production-style Account Service backed by PostgreSQL.
+LedgerFlow is a portfolio project for exploring resilient Java microservice design in a digital-banking domain. The repository provides a verified multi-module build and production-style Account and Transfer Services.
 
 > **Portfolio scope:** LedgerFlow is an educational system. It does not process real money and is not intended for production banking use.
 
@@ -12,20 +12,20 @@ The Maven reactor contains these independently packaged applications:
 | --- | --- | ---: | --- |
 | `api-gateway` | `api-gateway` | 8080 | Reactive Spring Cloud Gateway foundation and health endpoint |
 | `account-service` | `account-service` | 8081 | Account creation, reads, immutable ledger, reconciliation, and local/test synthetic funding |
-| `transfer-service` | `transfer-service` | 8082 | Spring MVC application foundation and health endpoint |
+| `transfer-service` | `transfer-service` | 8082 | Idempotent transfer intake, state history, PostgreSQL, Redis, and transactional outbox |
 | `risk-service` | `risk-service` | 8083 | Spring MVC application foundation and health endpoint |
 | `notification-service` | `notification-service` | 8084 | Spring MVC application foundation and health endpoint |
 
-The Account Service uses framework-free domain objects, ports and adapters, Flyway-owned PostgreSQL schema, row locking for safe balance mutations, RFC-compatible API errors, and a documented OpenAPI 3.1 contract. Other services remain foundations only. The root build enforces Java and Maven versions, formatting, dependency convergence, unit and integration test lifecycles, and JaCoCo report generation.
+Account and Transfer Services use independent framework-free domain models, ports and adapters, Flyway-owned PostgreSQL schemas, RFC-compatible errors, and OpenAPI 3.1 contracts. Transfer acceptance creates a `PENDING` workflow request and pending outbox event; it does not move money.
 
 ## Prerequisites
 
 - Java 25 LTS
 - Git
-- Docker Desktop or a compatible Docker Engine for Account Service PostgreSQL and the full verification suite
+- Docker Desktop or a compatible Docker Engine for PostgreSQL, Redis, and the full verification suite
 - A network connection for the Maven Wrapper's first run
 
-A system Maven installation and host PostgreSQL installation are not required. Kafka, Redis, Node.js, and frontend tooling are not used yet.
+A system Maven installation and host PostgreSQL or Redis installations are not required. Kafka, Node.js, and frontend tooling are not used yet.
 
 ## Build and test
 
@@ -52,17 +52,21 @@ docker compose up -d postgres
 
 Then query `http://localhost:8081/actuator/health/readiness`. See the [Account Service guide](docs/services/account-service.md) for API examples and the [local development guide](docs/development/local-development.md) for Windows equivalents.
 
+Start Transfer PostgreSQL and Redis with `docker compose up -d transfer-postgres redis`, then run `./mvnw -pl services/transfer-service spring-boot:run -Dspring-boot.run.profiles=local`.
+
 ## Planned architecture
 
-Later phases will add transfers, reservations, Kafka with transactional outboxes, Redis-backed protective controls, security, centralized observability, and a React operations console. Those capabilities are architecture decisions and roadmap items, not current runtime claims.
+Later phases will add reservations, Kafka publication and consumers, risk, settlement, security, centralized observability, and a React operations console.
 
-Only `account-service` includes database and migration dependencies. No module includes Kafka, Redis, Spring Security, or frontend dependencies yet.
+Account and Transfer Services own separate databases. Redis accelerates Transfer idempotency without becoming authoritative. No module includes Kafka, Spring Security, or frontend dependencies yet.
 
 ## Documentation
 
 - [Local development](docs/development/local-development.md)
 - [Account Service](docs/services/account-service.md)
 - [Account Service OpenAPI](contracts/openapi/account-service.yaml)
+- [Transfer Service](docs/services/transfer-service.md)
+- [Transfer Service OpenAPI](contracts/openapi/transfer-service.yaml)
 - [Verified technology stack](docs/technology-stack.md)
 - [System design](docs/architecture/system-design.md)
 - [Quality attributes](docs/architecture/quality-attributes.md)
@@ -74,4 +78,4 @@ Only `account-service` includes database and migration dependencies. No module i
 
 ## Repository status
 
-Phase 0 is complete. The Account and ledger core of Phase 1 is operational and verified; the remaining services and cross-service workflows are intentionally deferred.
+Phases 0, 1, and 2 are complete. Transfer requests remain `PENDING`; cross-service Kafka workflow execution is deferred to Phase 3.

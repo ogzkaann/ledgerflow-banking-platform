@@ -1,0 +1,277 @@
+openapi: 3.1.0
+info:
+  title: LedgerFlow Transfer Service API
+  version: 1.0.0
+  description: |
+    Accepts idempotent transfer workflow requests. Phase 2 does not verify accounts,
+    reserve or move funds, or publish Kafka messages. Every accepted request remains
+    PENDING until the Phase 3 workflow is implemented.
+servers:
+  - url: http://localhost:8082
+paths:
+  /api/v1/transfers:
+    post:
+      summary: Accept a transfer workflow request
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateTransferRequest"
+            example:
+              sourceAccountId: 0d17936c-05d5-45ae-9ee8-0a33f7ae8256
+              destinationAccountId: ae36fc23-a25d-40fb-a336-1a1604739880
+              amount: "125.50"
+              currency: EUR
+              reference: invoice-2026-001
+      responses:
+        "202":
+          description: New or idempotently replayed PENDING transfer
+          headers:
+            Location:
+              description: Relative URI of the transfer
+              schema:
+                type: string
+              example: /api/v1/transfers/8ca2c0cd-e97a-4168-b145-bcf7179dd7ef
+            X-Correlation-Id:
+              description: Supplied or generated log-safe correlation identifier
+              schema:
+                type: string
+                maxLength: 100
+            Idempotency-Replayed:
+              description: Present with value true only when returning an existing transfer
+              schema:
+                type: string
+                const: "true"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Transfer"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/transfers/{transferId}:
+    parameters:
+      - $ref: "#/components/parameters/TransferId"
+    get:
+      summary: Retrieve current transfer state
+      responses:
+        "200":
+          description: Transfer representation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Transfer"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/transfers/{transferId}/history:
+    parameters:
+      - $ref: "#/components/parameters/TransferId"
+    get:
+      summary: Retrieve bounded state history oldest first
+      responses:
+        "200":
+          description: Immutable transition history
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TransferHistory"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+components:
+  parameters:
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: Globally scoped to transfer creation until client identity exists.
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 100
+        pattern: "^[A-Za-z0-9._:-]+$"
+      example: transfer-request-001
+    CorrelationId:
+      name: X-Correlation-Id
+      in: header
+      required: false
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 100
+        pattern: "^[A-Za-z0-9._:-]+$"
+    TransferId:
+      name: transferId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+  schemas:
+    CreateTransferRequest:
+      type: object
+      additionalProperties: false
+      required: [sourceAccountId, destinationAccountId, amount, currency, reference]
+      properties:
+        sourceAccountId:
+          type: string
+          format: uuid
+        destinationAccountId:
+          type: string
+          format: uuid
+          description: Must differ from sourceAccountId. Account existence is not checked in Phase 2.
+        amount:
+          type: string
+          pattern: "^[0-9]+(?:\\.[0-9]{1,2})?$"
+          description: Positive decimal monetary string with at most two fractional digits.
+          example: "125.50"
+        currency:
+          type: string
+          enum: [EUR, USD, GBP]
+        reference:
+          type: string
+          minLength: 1
+          maxLength: 100
+    Transfer:
+      type: object
+      required:
+        - transferId
+        - sourceAccountId
+        - destinationAccountId
+        - amount
+        - currency
+        - reference
+        - status
+        - correlationId
+        - createdAt
+        - updatedAt
+        - version
+      properties:
+        transferId:
+          type: string
+          format: uuid
+        sourceAccountId:
+          type: string
+          format: uuid
+        destinationAccountId:
+          type: string
+          format: uuid
+        amount:
+          type: string
+          pattern: "^[0-9]+\\.[0-9]{2}$"
+        currency:
+          type: string
+          enum: [EUR, USD, GBP]
+        reference:
+          type: string
+        status:
+          type: string
+          enum: [PENDING, FUNDS_RESERVED, RISK_APPROVED, SETTLING, COMPLETED, REJECTED, COMPENSATING, EXPIRED]
+          description: Creation returns PENDING; no public status-transition endpoint exists.
+        correlationId:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        version:
+          type: integer
+          format: int64
+          minimum: 0
+    TransferHistory:
+      type: object
+      required: [transitionId, toStatus, reason, occurredAt, sequence]
+      properties:
+        transitionId:
+          type: string
+          format: uuid
+        fromStatus:
+          type: [string, "null"]
+          description: Null for initial creation.
+        toStatus:
+          type: string
+        reason:
+          type: string
+        occurredAt:
+          type: string
+          format: date-time
+        sequence:
+          type: integer
+          format: int64
+          minimum: 0
+    ProblemDetail:
+      type: object
+      required: [type, title, status, detail, instance]
+      properties:
+        type:
+          type: string
+          format: uri-reference
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        instance:
+          type: string
+          format: uri-reference
+        errors:
+          type: array
+          items:
+            type: object
+            properties:
+              field:
+                type: string
+              message:
+                type: string
+  responses:
+    BadRequest:
+      description: Malformed body, identifier, or required header
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/ProblemDetail"
+    NotFound:
+      description: Transfer does not exist
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/ProblemDetail"
+    Conflict:
+      description: Idempotency key reused for a different logical request
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/ProblemDetail"
+    Unprocessable:
+      description: Semantically invalid transfer
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/ProblemDetail"
+    InternalError:
+      description: Safe unexpected-error response
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/ProblemDetail"

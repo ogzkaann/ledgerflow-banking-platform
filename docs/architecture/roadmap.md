@@ -24,6 +24,8 @@ Transfers, reservations, and production funding remain outside Phase 1 and begin
 
 ## Phase 2 — Transfer intake and idempotency
 
+Status: complete for durable transfer intake. Accepted transfers remain `PENDING`.
+
 - transfer REST API;
 - Redis and PostgreSQL idempotency protection;
 - transfer state machine;

@@ -13,9 +13,10 @@ Versions were verified on 2026-07-18 using project-owned documentation, release 
 | Spring Cloud | 2025.1.2 | Imported BOM | Latest stable release train and the first 2025.1 service release explicitly compatible with Spring Boot 4.1.0 |
 | Maven Wrapper | 3.3.4 | Checked in | Latest stable wrapper tooling |
 | Apache Maven | 3.9.16 | Wrapper distribution | Latest recommended production Maven release; Maven 4 remains a preview |
-| PostgreSQL | 18.4 | Account Service Compose and Testcontainers | Current stable PostgreSQL 18 maintenance release; used for local runtime and integration tests |
-| Testcontainers | 2.0.5 | Active in Account Service tests | Spring Boot-managed version proving migrations, PostgreSQL behavior, and concurrency |
-| Flyway | 12.4.0 | Active in Account Service | Spring Boot-managed migration engine; PostgreSQL support uses the database-specific module |
+| PostgreSQL | 18.4 | Account and Transfer Compose and Testcontainers | Independent service databases used for local runtime and integration tests |
+| Redis Open Source | 8.8.0 | Transfer Compose and Testcontainers | Non-authoritative idempotency acceleration with PostgreSQL fallback |
+| Testcontainers | 2.0.5 | Active in Account and Transfer tests | Proves migrations, persistence, Redis behavior, and concurrency |
+| Flyway | 12.4.0 | Active in Account and Transfer Services | Schema owner with database-specific PostgreSQL support |
 
 The POM also pins Maven Compiler 3.15.0, Enforcer 3.6.3, Surefire and Failsafe 3.5.6, Spotless 3.8.0, Palantir Java Format 2.96.0, and JaCoCo 0.8.15.
 
@@ -26,7 +27,6 @@ These versions are verified targets, not claims that the corresponding infrastru
 | Area | Selected version | Status |
 | --- | --- | --- |
 | Apache Kafka broker | 4.3.1 | Latest supported Kafka bug-fix release; integration deferred |
-| Redis Open Source | 8.8.0 | Latest stable general-availability line; integration deferred |
 | React | 19.2 | Latest stable React feature release; frontend deferred |
 | Node.js | 24.18.0 LTS | Current production LTS line at verification time; frontend tooling deferred |
 
@@ -38,8 +38,8 @@ Kafka's broker version is deliberately separate from the Kafka client version. W
 - The previous `3.9.16` "Maven Wrapper" entry conflated two products. Wrapper tooling is 3.3.4; the wrapped Maven distribution is 3.9.16.
 - Spring Boot 4.1.0 and Spring Cloud 2025.1.2 were retained after the Spring Cloud 2025.1.2 release notes explicitly confirmed their compatibility.
 - Redis changed from 8.2 to 8.8.0. Redis 8.2 was a stable release, but it is no longer the latest stable Open Source line and the Open Source release notes do not designate it as an LTS baseline.
-- Flyway and Testcontainers are present only in `account-service`, where executable migrations and PostgreSQL integration tests now justify them. Their versions remain governed by the Spring Boot BOM.
-- Kafka, Redis, and frontend versions remain documentation-only targets until their delivery phases add executable configuration and tests.
+- Flyway and Testcontainers are present in the two stateful implemented services and remain governed by the Spring Boot BOM.
+- Kafka and frontend versions remain documentation-only targets until their delivery phases.
 
 ## Primary verification sources
 
@@ -59,4 +59,4 @@ Kafka's broker version is deliberately separate from the Kafka client version. W
 
 ## Architecture choices retained
 
-The project remains a modular monorepo of independently deployable services. Account Service owns its PostgreSQL schema, and each future stateful service will own its database. Kafka will use transactional outboxes, Redis will never be an authoritative financial store, no shared business-domain library will be introduced, and the implemented Account domain remains independent of Spring.
+The project remains a modular monorepo of independently deployable services. Account and Transfer own independent PostgreSQL schemas. Transfer stores pending event intent in an outbox, Redis is never authoritative, no shared business-domain library exists, and both implemented domains remain independent of Spring.

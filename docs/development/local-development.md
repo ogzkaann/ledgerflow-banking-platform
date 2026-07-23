@@ -2,7 +2,7 @@
 
 ## Current scope
 
-This repository builds five Spring Boot applications. `account-service` implements account and immutable-ledger behavior with PostgreSQL; the other four applications remain foundations. Kafka, Redis, the Elastic Stack, and the frontend are not present.
+This repository builds five Spring Boot applications. `account-service` implements account and immutable-ledger behavior. `transfer-service` implements durable idempotent transfer intake with independent PostgreSQL and non-authoritative Redis. Kafka, the Elastic Stack, and the frontend are not present.
 
 ## Required tools
 
@@ -34,7 +34,7 @@ Use the checked-in Maven Wrapper. A system Maven installation is neither require
 | Apply Java formatting | `./mvnw spotless:apply` | `.\mvnw.cmd spotless:apply` |
 | Show dependency tree | `./mvnw dependency:tree` | `.\mvnw.cmd dependency:tree` |
 
-`verify` compiles every module, runs unit and integration-test lifecycles, checks dependency convergence and formatting, packages each service, and generates JaCoCo reports. Account integration tests start PostgreSQL 18.4 with Testcontainers and fail visibly when Docker is unavailable. No coverage percentage gate is set; behavioral failure tests remain the primary quality signal.
+`verify` compiles every module, runs unit and integration-test lifecycles, checks dependency convergence and formatting, packages each service, and generates JaCoCo reports. Account and Transfer tests start real PostgreSQL containers; Transfer also starts Redis. Tests fail visibly when Docker is unavailable.
 
 Validate the Docker Compose model independently with `docker compose config`.
 
@@ -78,6 +78,22 @@ See the [Account Service guide](../services/account-service.md) and [OpenAPI con
 
 Stop the application with `Ctrl+C`. Stop PostgreSQL while retaining its named volume with `docker compose down`. Adding `-v` deletes the local database volume.
 
+## Run the Transfer Service
+
+```bash
+docker compose up -d postgres transfer-postgres redis
+./mvnw -pl services/transfer-service spring-boot:run -Dspring-boot.run.profiles=local
+```
+
+PowerShell:
+
+```powershell
+docker compose up -d postgres transfer-postgres redis
+.\mvnw.cmd -pl services/transfer-service spring-boot:run "-Dspring-boot.run.profiles=local"
+```
+
+Transfer PostgreSQL uses port 5433 and Redis uses 6379 by default. The API is at `http://localhost:8082/api/v1/transfers`; PostgreSQL is readiness-critical while Redis safely degrades to durable PostgreSQL idempotency. See the [Transfer Service guide](../services/transfer-service.md).
+
 ## Run a service
 
 Run one module from the repository root:
@@ -108,9 +124,9 @@ $env:SERVER_PORT = "9081"
 
 ## Account database configuration
 
-`account-service` accepts `ACCOUNT_DB_URL`, `ACCOUNT_DB_USERNAME`, and `ACCOUNT_DB_PASSWORD`. Compose accepts `ACCOUNT_POSTGRES_DB`, `ACCOUNT_POSTGRES_USER`, `ACCOUNT_POSTGRES_PASSWORD`, and `ACCOUNT_POSTGRES_PORT` from `.env`.
+`account-service` accepts `ACCOUNT_DB_*` variables. Transfer accepts `TRANSFER_DB_*` and `TRANSFER_REDIS_*`; Compose accepts the corresponding `TRANSFER_POSTGRES_*` overrides documented in `.env.example`.
 
-If the Compose port is changed from 5432, also export a matching `ACCOUNT_DB_URL` before running Maven; Compose `.env` interpolation does not export variables into the Maven process. Kafka and Redis clients or containers will be added only with the future features that require them.
+If a Compose port changes, export the matching application URL or port before running Maven; Compose `.env` interpolation does not export variables into the Maven process. Kafka remains deferred.
 
 ## Common failures
 

@@ -19,6 +19,8 @@ Every Kafka message uses a stable envelope:
 
 ## Initial topics
 
+Phase 2 stores `ledgerflow.transfer.initiated.v1` envelopes as pending PostgreSQL JSONB outbox rows. No topic is operational and no Kafka publisher exists until Phase 3.
+
 | Topic | Producer | Consumers | Key |
 | --- | --- | --- | --- |
 | `ledgerflow.transfer.commands.v1` | Transfer Service | Account Service | transfer ID |

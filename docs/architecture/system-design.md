@@ -4,7 +4,7 @@
 
 LedgerFlow demonstrates how to design and implement a resilient money-transfer workflow across independently deployable Java microservices. The project prioritizes correctness, traceability, failure recovery, and explainable engineering decisions over feature volume.
 
-The repository has completed its foundation and Account Service core phases. Account creation, account reads, immutable credit-ledger history, reconciliation, PostgreSQL persistence, and local/test synthetic funding are operational. Transfer workflows and every other infrastructure integration described below remain planned unless explicitly marked implemented.
+The repository has completed its foundation, Account Service core, and Transfer intake phases. Transfer creation, retrieval, history, durable idempotency, Redis acceleration, and pending outbox intent are operational. Money movement and cross-service workflows remain planned unless explicitly marked implemented.
 
 ## 2. Scope
 
@@ -128,7 +128,7 @@ stateDiagram-v2
     EXPIRED --> [*]
 ```
 
-Invalid or repeated transitions are ignored and recorded as operational events rather than corrupting state.
+Invalid or repeated transitions are rejected with a typed conflict and never mutate state. Successful transitions append immutable history.
 
 ## 7. Synchronous and asynchronous communication
 
