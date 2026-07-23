@@ -43,6 +43,7 @@
         <maven-surefire-plugin.version>3.5.6</maven-surefire-plugin.version>
         <palantir-java-format.version>2.96.0</palantir-java-format.version>
         <spotless-maven-plugin.version>3.8.0</spotless-maven-plugin.version>
+        <cyclonedx-maven-plugin.version>2.9.2</cyclonedx-maven-plugin.version>
     </properties>
 
     <dependencyManagement>
@@ -229,6 +230,26 @@
                         <goals>
                             <goal>report-integration</goal>
                         </goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.cyclonedx</groupId>
+                <artifactId>cyclonedx-maven-plugin</artifactId>
+                <version>${cyclonedx-maven-plugin.version}</version>
+                <inherited>false</inherited>
+                <executions>
+                    <execution>
+                        <id>aggregate-sbom</id>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>makeAggregateBom</goal>
+                        </goals>
+                        <configuration>
+                            <outputFormat>json</outputFormat>
+                            <outputName>ledgerflow-sbom</outputName>
+                            <includeBomSerialNumber>true</includeBomSerialNumber>
+                        </configuration>
                     </execution>
                 </executions>
             </plugin>

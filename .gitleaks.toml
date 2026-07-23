@@ -1,0 +1,20 @@
+title = "LedgerFlow Gitleaks configuration"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Generated Maven output is ignored by Git and is not source material"
+paths = ['''(^|/)target/''']
+
+[[rules]]
+id = "curl-auth-user"
+
+[[rules.allowlists]]
+description = "Elasticsearch healthcheck uses the runtime environment password"
+condition = "AND"
+regexTarget = "line"
+regexes = [
+  '''curl --silent --fail --user elastic:\$\$\{ELASTIC_PASSWORD\} http://localhost:9200/_cluster/health''',
+]
+paths = ['''(^|/)compose\.yaml$''']
