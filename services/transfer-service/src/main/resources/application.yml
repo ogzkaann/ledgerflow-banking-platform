@@ -1,6 +1,35 @@
 spring:
   application:
     name: transfer-service
+  datasource:
+    url: ${TRANSFER_DB_URL:jdbc:postgresql://localhost:5433/ledgerflow_transfer}
+    username: ${TRANSFER_DB_USERNAME:ledgerflow_transfer}
+    password: ${TRANSFER_DB_PASSWORD:ledgerflow-transfer-local-only}
+    hikari:
+      connection-timeout: 5000
+  flyway:
+    enabled: true
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+  data:
+    redis:
+      repositories:
+        enabled: false
+      host: ${TRANSFER_REDIS_HOST:localhost}
+      port: ${TRANSFER_REDIS_PORT:6379}
+      connect-timeout: 500ms
+      timeout: 500ms
+
+ledgerflow:
+  transfer:
+    idempotency:
+      redis-ttl: 24h
 
 server:
   port: ${SERVER_PORT:8082}
@@ -15,3 +44,6 @@ management:
       probes:
         enabled: true
       show-details: never
+      group:
+        readiness:
+          include: readinessState,db
