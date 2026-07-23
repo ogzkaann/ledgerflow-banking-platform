@@ -1,6 +1,23 @@
 spring:
   application:
     name: api-gateway
+  cloud:
+    gateway:
+      server:
+        webflux:
+          routes:
+            - id: account-service
+              uri: ${ACCOUNT_SERVICE_URL:http://localhost:8081}
+              predicates:
+                - Path=/api/v1/accounts/**
+            - id: transfer-service
+              uri: ${TRANSFER_SERVICE_URL:http://localhost:8082}
+              predicates:
+                - Path=/api/v1/transfers/**
+            - id: notification-service
+              uri: ${NOTIFICATION_SERVICE_URL:http://localhost:8084}
+              predicates:
+                - Path=/api/v1/notifications/**
 
 server:
   port: ${SERVER_PORT:8080}
