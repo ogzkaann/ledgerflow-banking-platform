@@ -1,0 +1,447 @@
+asyncapi: 3.0.0
+info:
+  title: LedgerFlow transfer workflow events
+  version: 1.0.0
+  description: |
+    Operational Phase 3 Kafka contract. Delivery is at least once. Consumers use
+    `eventId` and local `processed_events` rows for idempotent business behavior.
+    Every record is keyed by `payload.transferId`, so ordering is preserved only
+    for one transfer. There is no global ordering guarantee.
+servers:
+  local:
+    host: localhost:9092
+    protocol: kafka
+    description: Single-node local KRaft broker; not a production topology.
+
+channels:
+  transferCommands:
+    address: ledgerflow.transfer.commands.v1
+    description: Commands produced by Transfer Service and consumed by Account Service.
+    messages:
+      transferInitiated:
+        $ref: '#/components/messages/TransferInitiated'
+      settlementRequested:
+        $ref: '#/components/messages/SettlementRequested'
+      compensationRequested:
+        $ref: '#/components/messages/CompensationRequested'
+  accountEvents:
+    address: ledgerflow.account.events.v1
+    description: Events produced by Account Service and consumed by Transfer and Risk services.
+    messages:
+      fundsReserved:
+        $ref: '#/components/messages/FundsReserved'
+      fundsReservationRejected:
+        $ref: '#/components/messages/FundsReservationRejected'
+      transferSettled:
+        $ref: '#/components/messages/TransferSettled'
+      fundsReleased:
+        $ref: '#/components/messages/FundsReleased'
+  riskEvents:
+    address: ledgerflow.risk.events.v1
+    description: Decisions produced by Risk Service and consumed by Transfer Service.
+    messages:
+      riskApproved:
+        $ref: '#/components/messages/RiskApproved'
+      riskRejected:
+        $ref: '#/components/messages/RiskRejected'
+  transferEvents:
+    address: ledgerflow.transfer.events.v1
+    description: Terminal events produced by Transfer Service and consumed by Notification Service.
+    messages:
+      transferCompleted:
+        $ref: '#/components/messages/TransferCompleted'
+      transferRejected:
+        $ref: '#/components/messages/TransferRejected'
+  transferCommandsDlt:
+    address: ledgerflow.transfer.commands.dlt.v1
+    description: Unrecoverable records from transfer.commands, with Spring Kafka original-record and exception headers.
+  accountEventsDlt:
+    address: ledgerflow.account.events.dlt.v1
+    description: Unrecoverable records from account.events, with Spring Kafka original-record and exception headers.
+  riskEventsDlt:
+    address: ledgerflow.risk.events.dlt.v1
+    description: Unrecoverable records from risk.events, with Spring Kafka original-record and exception headers.
+  transferEventsDlt:
+    address: ledgerflow.transfer.events.dlt.v1
+    description: Unrecoverable records from transfer.events, with Spring Kafka original-record and exception headers.
+
+operations:
+  transferSendsCommands:
+    action: send
+    channel:
+      $ref: '#/channels/transferCommands'
+    summary: Transfer Service publishes intake, settlement, and compensation commands.
+  accountReceivesCommands:
+    action: receive
+    channel:
+      $ref: '#/channels/transferCommands'
+    summary: Account Service reserves, settles, or releases funds.
+  accountSendsEvents:
+    action: send
+    channel:
+      $ref: '#/channels/accountEvents'
+    summary: Account Service publishes reservation and money-movement outcomes.
+  transferReceivesAccountEvents:
+    action: receive
+    channel:
+      $ref: '#/channels/accountEvents'
+    summary: Transfer Service advances workflow state from Account Service outcomes.
+  riskReceivesReservation:
+    action: receive
+    channel:
+      $ref: '#/channels/accountEvents'
+    summary: Risk Service evaluates only funds-reserved events; other known account events are ignored.
+  riskSendsDecisions:
+    action: send
+    channel:
+      $ref: '#/channels/riskEvents'
+    summary: Risk Service publishes deterministic approval or rejection decisions.
+  transferReceivesRisk:
+    action: receive
+    channel:
+      $ref: '#/channels/riskEvents'
+    summary: Transfer Service requests settlement or compensation.
+  transferSendsTerminalEvents:
+    action: send
+    channel:
+      $ref: '#/channels/transferEvents'
+    summary: Transfer Service publishes completed or rejected events.
+  notificationReceivesTerminalEvents:
+    action: receive
+    channel:
+      $ref: '#/channels/transferEvents'
+    summary: Notification Service records one durable notification per terminal event.
+
+components:
+  messages:
+    TransferInitiated:
+      name: ledgerflow.transfer.initiated.v1
+      title: Transfer accepted
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/Envelope'
+          - $ref: '#/components/schemas/TransferInitiatedEnvelope'
+      bindings:
+        kafka:
+          key:
+            type: string
+            format: uuid
+            description: Transfer ID
+          bindingVersion: 0.5.0
+      examples:
+        - name: initiated
+          payload:
+            eventId: 11111111-1111-4111-8111-111111111111
+            eventType: ledgerflow.transfer.initiated.v1
+            eventVersion: 1
+            occurredAt: '2026-07-23T12:00:00Z'
+            correlationId: demo-correlation
+            causationId: demo-request
+            producer: transfer-service
+            payload:
+              transferId: 22222222-2222-4222-8222-222222222222
+              sourceAccountId: 33333333-3333-4333-8333-333333333333
+              destinationAccountId: 44444444-4444-4444-8444-444444444444
+              amount: '125.50'
+              currency: EUR
+              reference: invoice-2026-001
+    SettlementRequested:
+      name: ledgerflow.transfer.settlement-requested.v1
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/Envelope'
+          - $ref: '#/components/schemas/SettlementRequestedEnvelope'
+      bindings:
+        kafka:
+          key:
+            $ref: '#/components/schemas/TransferId'
+          bindingVersion: 0.5.0
+    CompensationRequested:
+      name: ledgerflow.transfer.compensation-requested.v1
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/Envelope'
+          - $ref: '#/components/schemas/CompensationRequestedEnvelope'
+      bindings:
+        kafka:
+          key:
+            $ref: '#/components/schemas/TransferId'
+          bindingVersion: 0.5.0
+    FundsReserved:
+      name: ledgerflow.account.funds-reserved.v1
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/Envelope'
+          - $ref: '#/components/schemas/FundsReservedEnvelope'
+      bindings:
+        kafka:
+          key:
+            $ref: '#/components/schemas/TransferId'
+          bindingVersion: 0.5.0
+    FundsReservationRejected:
+      name: ledgerflow.account.funds-reservation-rejected.v1
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/Envelope'
+          - $ref: '#/components/schemas/RejectionEnvelope'
+      bindings:
+        kafka:
+          key:
+            $ref: '#/components/schemas/TransferId'
+          bindingVersion: 0.5.0
+    TransferSettled:
+      name: ledgerflow.account.transfer-settled.v1
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/Envelope'
+          - $ref: '#/components/schemas/TransferOnlyEnvelope'
+      bindings:
+        kafka:
+          key:
+            $ref: '#/components/schemas/TransferId'
+          bindingVersion: 0.5.0
+    FundsReleased:
+      name: ledgerflow.account.funds-released.v1
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/Envelope'
+          - $ref: '#/components/schemas/TransferOnlyEnvelope'
+      bindings:
+        kafka:
+          key:
+            $ref: '#/components/schemas/TransferId'
+          bindingVersion: 0.5.0
+    RiskApproved:
+      name: ledgerflow.risk.approved.v1
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/Envelope'
+          - $ref: '#/components/schemas/RiskDecisionEnvelope'
+      bindings:
+        kafka:
+          key:
+            $ref: '#/components/schemas/TransferId'
+          bindingVersion: 0.5.0
+    RiskRejected:
+      name: ledgerflow.risk.rejected.v1
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/Envelope'
+          - $ref: '#/components/schemas/RiskDecisionEnvelope'
+      bindings:
+        kafka:
+          key:
+            $ref: '#/components/schemas/TransferId'
+          bindingVersion: 0.5.0
+    TransferCompleted:
+      name: ledgerflow.transfer.completed.v1
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/Envelope'
+          - $ref: '#/components/schemas/TransferOnlyEnvelope'
+      bindings:
+        kafka:
+          key:
+            $ref: '#/components/schemas/TransferId'
+          bindingVersion: 0.5.0
+    TransferRejected:
+      name: ledgerflow.transfer.rejected.v1
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/Envelope'
+          - $ref: '#/components/schemas/RejectionEnvelope'
+      bindings:
+        kafka:
+          key:
+            $ref: '#/components/schemas/TransferId'
+          bindingVersion: 0.5.0
+
+  schemas:
+    Envelope:
+      type: object
+      additionalProperties: true
+      required:
+        - eventId
+        - eventType
+        - eventVersion
+        - occurredAt
+        - correlationId
+        - causationId
+        - producer
+        - payload
+      properties:
+        eventId:
+          type: string
+          format: uuid
+          description: Globally unique event identifier; unchanged by publication retries.
+        eventType:
+          type: string
+          pattern: '^ledgerflow\.[a-z-]+\.[a-z-]+\.v[1-9][0-9]*$'
+        eventVersion:
+          type: integer
+          minimum: 1
+          description: Consumers in Phase 3 accept version 1; unsupported versions go to DLT.
+        occurredAt:
+          type: string
+          format: date-time
+          description: UTC event creation time.
+        correlationId:
+          type: string
+          minLength: 1
+          description: Constant across the workflow.
+        causationId:
+          type: string
+          minLength: 1
+          description: ID of the event or request that caused this message.
+        producer:
+          type: string
+          enum:
+            - transfer-service
+            - account-service
+            - risk-service
+        payload:
+          type: object
+    TransferId:
+      type: string
+      format: uuid
+      description: Kafka record key and workflow aggregate identifier.
+    MoneyAmount:
+      type: string
+      pattern: '^[0-9]+\.[0-9]{2}$'
+      description: Decimal money serialized as a JSON string.
+    Currency:
+      type: string
+      enum: [EUR, USD, GBP]
+    TransferOnlyPayload:
+      type: object
+      additionalProperties: false
+      required: [transferId]
+      properties:
+        transferId:
+          $ref: '#/components/schemas/TransferId'
+    TransferInitiatedPayload:
+      type: object
+      additionalProperties: false
+      required: [transferId, sourceAccountId, destinationAccountId, amount, currency, reference]
+      properties:
+        transferId:
+          $ref: '#/components/schemas/TransferId'
+        sourceAccountId:
+          type: string
+          format: uuid
+        destinationAccountId:
+          type: string
+          format: uuid
+        amount:
+          $ref: '#/components/schemas/MoneyAmount'
+        currency:
+          $ref: '#/components/schemas/Currency'
+        reference:
+          type: string
+          minLength: 1
+          maxLength: 100
+    FundsReservedPayload:
+      allOf:
+        - $ref: '#/components/schemas/TransferInitiatedPayload'
+        - type: object
+          required: [reservationId]
+          properties:
+            reservationId:
+              type: string
+              format: uuid
+    RejectionPayload:
+      type: object
+      additionalProperties: false
+      required: [transferId, reason]
+      properties:
+        transferId:
+          $ref: '#/components/schemas/TransferId'
+        reason:
+          type: string
+          enum:
+            - SOURCE_ACCOUNT_NOT_FOUND
+            - DESTINATION_ACCOUNT_NOT_FOUND
+            - SOURCE_ACCOUNT_INACTIVE
+            - DESTINATION_ACCOUNT_INACTIVE
+            - INSUFFICIENT_FUNDS
+            - CURRENCY_MISMATCH
+            - INVALID_ACCOUNT_PAIR
+            - WORKFLOW_REJECTED
+            - ABOVE_MAXIMUM_AMOUNT
+            - BLOCKED_REFERENCE
+    RiskDecisionPayload:
+      type: object
+      additionalProperties: false
+      required: [transferId, outcome, reason, ruleVersion]
+      properties:
+        transferId:
+          $ref: '#/components/schemas/TransferId'
+        outcome:
+          type: string
+          enum: [APPROVED, REJECTED]
+        reason:
+          type: string
+          enum: [RULES_PASSED, ABOVE_MAXIMUM_AMOUNT, BLOCKED_REFERENCE]
+        ruleVersion:
+          type: string
+          const: risk-rules-v1
+    TransferInitiatedEnvelope:
+      type: object
+      properties:
+        eventType:
+          const: ledgerflow.transfer.initiated.v1
+        payload:
+          $ref: '#/components/schemas/TransferInitiatedPayload'
+    SettlementRequestedEnvelope:
+      type: object
+      properties:
+        eventType:
+          const: ledgerflow.transfer.settlement-requested.v1
+        payload:
+          $ref: '#/components/schemas/TransferOnlyPayload'
+    CompensationRequestedEnvelope:
+      type: object
+      properties:
+        eventType:
+          const: ledgerflow.transfer.compensation-requested.v1
+        payload:
+          $ref: '#/components/schemas/TransferOnlyPayload'
+    FundsReservedEnvelope:
+      type: object
+      properties:
+        eventType:
+          const: ledgerflow.account.funds-reserved.v1
+        payload:
+          $ref: '#/components/schemas/FundsReservedPayload'
+    RejectionEnvelope:
+      type: object
+      properties:
+        payload:
+          $ref: '#/components/schemas/RejectionPayload'
+    TransferOnlyEnvelope:
+      type: object
+      properties:
+        payload:
+          $ref: '#/components/schemas/TransferOnlyPayload'
+    RiskDecisionEnvelope:
+      type: object
+      properties:
+        payload:
+          $ref: '#/components/schemas/RiskDecisionPayload'
+
+x-ledgerflow-delivery:
+  guarantee: at-least-once
+  business-idempotency:
+    - unique eventId
+    - processed_events in the same local transaction as business changes
+    - guarded state and reservation transitions
+    - unique deterministic ledger references
+  retry:
+    maximumAttempts: 3
+    initialDelay: 1s
+    multiplier: 2
+    maximumDelay: 4s
+  deadLetter:
+    policy: Malformed, unsupported-version, impossible-schema, and other exhausted technical failures go to the matching DLT.
+    headers: Original topic, partition, offset, and exception metadata are preserved by Spring Kafka.
+  businessOutcomes: Expected rejections produce normal workflow events and never enter DLT retry loops.
