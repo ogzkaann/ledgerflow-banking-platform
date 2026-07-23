@@ -13,24 +13,28 @@ Versions were verified on 2026-07-18 using project-owned documentation, release 
 | Spring Cloud | 2025.1.2 | Imported BOM | Latest stable release train and the first 2025.1 service release explicitly compatible with Spring Boot 4.1.0 |
 | Maven Wrapper | 3.3.4 | Checked in | Latest stable wrapper tooling |
 | Apache Maven | 3.9.16 | Wrapper distribution | Latest recommended production Maven release; Maven 4 remains a preview |
-| PostgreSQL | 18.4 | Account and Transfer Compose and Testcontainers | Independent service databases used for local runtime and integration tests |
+| PostgreSQL | 18.4 | All four stateful service databases | Independent databases used for local runtime and Testcontainers integration tests |
 | Redis Open Source | 8.8.0 | Transfer Compose and Testcontainers | Non-authoritative idempotency acceleration with PostgreSQL fallback |
-| Testcontainers | 2.0.5 | Active in Account and Transfer tests | Proves migrations, persistence, Redis behavior, and concurrency |
-| Flyway | 12.4.0 | Active in Account and Transfer Services | Schema owner with database-specific PostgreSQL support |
+| Apache Kafka broker | 4.1.2 | Compose and Testcontainers | Pinned KRaft broker proven by real workflow and DLT tests |
+| Spring Kafka | Boot 4.1 managed | Account, Transfer, Risk, Notification | Explicit JSON, bounded retries, DLT recovery, producers and consumers |
+| Testcontainers | 2.0.5 | Active in all stateful services | Proves migrations, persistence, Redis/Kafka behavior, concurrency, and E2E workflow |
+| Flyway | 12.4.0 | Active in all stateful services | Schema owner with database-specific PostgreSQL support |
 
 The POM also pins Maven Compiler 3.15.0, Enforcer 3.6.3, Surefire and Failsafe 3.5.6, Spotless 3.8.0, Palantir Java Format 2.96.0, and JaCoCo 0.8.15.
 
-## Planned infrastructure and frontend baselines
+## Planned frontend baseline
 
 These versions are verified targets, not claims that the corresponding infrastructure or application is present:
 
 | Area | Selected version | Status |
 | --- | --- | --- |
-| Apache Kafka broker | 4.3.1 | Latest supported Kafka bug-fix release; integration deferred |
 | React | 19.2 | Latest stable React feature release; frontend deferred |
 | Node.js | 24.18.0 LTS | Current production LTS line at verification time; frontend tooling deferred |
 
-Kafka's broker version is deliberately separate from the Kafka client version. When messaging is introduced, the Spring Boot BOM will select the Spring Kafka and Kafka client libraries, while compatibility with the selected broker image will be proven by Testcontainers integration tests.
+Kafka's broker version is deliberately separate from the Kafka client version.
+Spring Boot selects Spring Kafka and Kafka client libraries as a coordinated set;
+compatibility with the pinned broker image is proven by Testcontainers integration
+tests.
 
 ## Audit corrections
 
@@ -39,7 +43,8 @@ Kafka's broker version is deliberately separate from the Kafka client version. W
 - Spring Boot 4.1.0 and Spring Cloud 2025.1.2 were retained after the Spring Cloud 2025.1.2 release notes explicitly confirmed their compatibility.
 - Redis changed from 8.2 to 8.8.0. Redis 8.2 was a stable release, but it is no longer the latest stable Open Source line and the Open Source release notes do not designate it as an LTS baseline.
 - Flyway and Testcontainers are present in the two stateful implemented services and remain governed by the Spring Boot BOM.
-- Kafka and frontend versions remain documentation-only targets until their delivery phases.
+- Kafka 4.1.2 is now operational in Compose and Testcontainers; frontend versions
+  remain documentation-only targets.
 
 ## Primary verification sources
 
@@ -59,4 +64,8 @@ Kafka's broker version is deliberately separate from the Kafka client version. W
 
 ## Architecture choices retained
 
-The project remains a modular monorepo of independently deployable services. Account and Transfer own independent PostgreSQL schemas. Transfer stores pending event intent in an outbox, Redis is never authoritative, no shared business-domain library exists, and both implemented domains remain independent of Spring.
+The project remains a modular monorepo of independently deployable services.
+Account, Transfer, Risk, and Notification own independent PostgreSQL databases.
+Transfer, Account, and Risk publish from transactional outboxes; Redis is never
+authoritative; no shared business-domain library exists; domain layers remain
+independent of Spring.

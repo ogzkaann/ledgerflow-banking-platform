@@ -1,196 +1,139 @@
 # System Design
 
-## 1. Purpose
+LedgerFlow demonstrates durable, explainable money movement across independently
+deployable services. Local ACID transactions protect each service boundary;
+versioned Kafka messages connect those boundaries with eventual consistency.
 
-LedgerFlow demonstrates how to design and implement a resilient money-transfer workflow across independently deployable Java microservices. The project prioritizes correctness, traceability, failure recovery, and explainable engineering decisions over feature volume.
+## Ownership
 
-The repository has completed its foundation, Account Service core, and Transfer intake phases. Transfer creation, retrieval, history, durable idempotency, Redis acceleration, and pending outbox intent are operational. Money movement and cross-service workflows remain planned unless explicitly marked implemented.
-
-## 2. Scope
-
-### In scope
-
-- single-currency account-to-account transfers;
-- account creation and test funding;
-- available and reserved balance tracking;
-- immutable ledger entries;
-- asynchronous transfer processing;
-- deterministic risk assessment;
-- transfer status and history APIs;
-- operational notifications;
-- centralized logs and dashboards;
-- automated tests and local containerized infrastructure.
-
-### Out of scope for the first production-style release
-
-- real payment networks, cards, SEPA, SWIFT, or external bank connectivity;
-- interest, fees, foreign exchange, loans, or chargebacks;
-- personally identifiable production data;
-- multi-region deployment and regulatory certification;
-- real email or SMS delivery.
-
-## 3. Service boundaries
-
-### API Gateway
-
-Responsibilities:
-
-- route public API requests;
-- validate JWTs when security is enabled;
-- propagate `X-Correlation-Id`;
-- enforce request size and rate limits;
-- expose no business persistence.
-
-### Account Service
-
-Responsibilities:
-
-- own accounts, ledger entries, and materialized available/reserved balances (implemented);
-- create and retrieve single-currency accounts (implemented);
-- append synthetic local/test credits atomically with balance updates (implemented);
-- reject duplicate funding references and unsafe mutations (implemented);
-- reconcile signed ledger entries with materialized balances (implemented);
-- reserve, settle, and release funds for transfers (planned).
-
-Key invariant:
-
-```text
-available_balance >= 0
-reserved_balance >= 0
-sum(credits) - sum(debits) = available_balance + reserved_balance
+```mermaid
+flowchart TB
+    G["API Gateway<br/>no business data"]
+    A["Account Service"] --- ADB[("Account PostgreSQL<br/>accounts, ledger, reservations,<br/>processed events, outbox")]
+    T["Transfer Service"] --- TDB[("Transfer PostgreSQL<br/>transfers, history, idempotency,<br/>processed events, outbox")]
+    T -. "optional acceleration" .- R[("Redis")]
+    K[("Kafka")]
+    RK["Risk Service"] --- RDB[("Risk PostgreSQL<br/>decisions, processed events, outbox")]
+    N["Notification Service"] --- NDB[("Notification PostgreSQL<br/>notifications, processed events")]
+    G --> A
+    G --> T
+    G --> N
+    A <--> K
+    T <--> K
+    RK <--> K
+    N <--> K
 ```
 
-### Transfer Service
+No service reads another service's database. Redis is never a financial source of
+truth. The API Gateway exposes Account, Transfer, and the demo Notification read
+API; Risk Service and Actuator endpoints are not routed publicly.
 
-Responsibilities:
+## Happy path
 
-- accept transfer requests;
-- enforce API idempotency;
-- own transfer lifecycle state;
-- publish transfer commands through a transactional outbox;
-- consume account and risk outcomes idempotently;
-- expose transfer status and history.
+```mermaid
+sequenceDiagram
+    participant Client
+    participant Transfer
+    participant Kafka
+    participant Account
+    participant Risk
+    participant Notification
+    Client->>Transfer: POST transfer
+    Transfer-->>Client: 202 PENDING
+    Transfer->>Kafka: transfer.initiated
+    Kafka->>Account: transfer.initiated
+    Account->>Account: reserve available funds
+    Account->>Kafka: account.funds-reserved
+    Kafka->>Transfer: funds-reserved
+    Transfer->>Transfer: PENDING -> FUNDS_RESERVED
+    Kafka->>Risk: funds-reserved
+    Risk->>Kafka: risk.approved
+    Kafka->>Transfer: risk.approved
+    Transfer->>Transfer: FUNDS_RESERVED -> RISK_APPROVED -> SETTLING
+    Transfer->>Kafka: settlement-requested
+    Kafka->>Account: settlement-requested
+    Account->>Account: source DEBIT + destination CREDIT
+    Account->>Kafka: account.transfer-settled
+    Kafka->>Transfer: transfer-settled
+    Transfer->>Transfer: SETTLING -> COMPLETED
+    Transfer->>Kafka: transfer.completed
+    Kafka->>Notification: transfer.completed
+    Notification->>Notification: persist one final notification
+```
 
-### Risk Service
+Acceptance, reservation, approval, settling, and completion are distinct. A
+`PENDING` response never claims that money moved.
 
-Responsibilities:
+## Risk rejection and compensation
 
-- evaluate deterministic rules such as amount thresholds, account velocity, and blocked accounts;
-- publish an explainable approval or rejection decision;
-- keep rules deterministic so tests can fully cover outcomes.
+```mermaid
+sequenceDiagram
+    participant Transfer
+    participant Kafka
+    participant Account
+    participant Risk
+    participant Notification
+    Transfer->>Kafka: transfer.initiated
+    Kafka->>Account: transfer.initiated
+    Account->>Kafka: account.funds-reserved
+    Kafka->>Risk: funds-reserved
+    Risk->>Kafka: risk.rejected
+    Kafka->>Transfer: risk.rejected
+    Transfer->>Transfer: FUNDS_RESERVED -> COMPENSATING
+    Transfer->>Kafka: compensation-requested
+    Kafka->>Account: compensation-requested
+    Account->>Account: reserved -= amount; available += amount
+    Account->>Kafka: account.funds-released
+    Kafka->>Transfer: funds-released
+    Transfer->>Transfer: COMPENSATING -> REJECTED
+    Transfer->>Kafka: transfer.rejected
+    Kafka->>Notification: transfer.rejected
+    Notification->>Notification: persist one rejection notification
+```
 
-### Notification Service
+No debit or credit ledger entry is created for compensation. A reservation
+business rejection skips Risk Service and produces a terminal rejection event.
 
-Responsibilities:
-
-- consume completed and rejected transfer events;
-- create an auditable notification record;
-- simulate delivery without external vendor dependencies;
-- prevent duplicate delivery.
-
-## 4. Data ownership
-
-Each service owns a separate PostgreSQL database or schema and may not directly query another service's tables. Cross-service state moves through APIs or versioned events.
-
-| Service | Primary data |
-| --- | --- |
-| Account | accounts and ledger entries implemented; reservations, outbox, and processed events planned |
-| Transfer | transfers, idempotency mappings, state transitions, outbox, processed events |
-| Risk | risk decisions, rule snapshots, processed events, outbox |
-| Notification | notifications, delivery attempts, processed events |
-
-## 5. Consistency model
-
-- Local state changes use ACID database transactions.
-- Cross-service workflows are eventually consistent.
-- The transactional outbox pattern prevents database commits from being separated from event publication.
-- Consumers use a processed-event table and unique event IDs for idempotency.
-- Transfer state transitions are guarded by an explicit state machine.
-- Compensating events release reserved funds when a transfer is rejected or expires.
-
-## 6. Transfer state machine
+## Transfer state model
 
 ```mermaid
 stateDiagram-v2
     [*] --> PENDING
-    PENDING --> FUNDS_RESERVED: FundsReserved
-    PENDING --> REJECTED: FundsReservationFailed
-    FUNDS_RESERVED --> RISK_APPROVED: RiskApproved
-    FUNDS_RESERVED --> REJECTED: RiskRejected
-    RISK_APPROVED --> SETTLING: SettlementRequested
-    SETTLING --> COMPLETED: FundsSettled
-    SETTLING --> COMPENSATING: SettlementFailed
-    COMPENSATING --> REJECTED: FundsReleased
-    PENDING --> EXPIRED: Processing timeout
-    FUNDS_RESERVED --> COMPENSATING: Processing timeout
+    PENDING --> FUNDS_RESERVED: funds reserved
+    PENDING --> REJECTED: reservation rejected
+    FUNDS_RESERVED --> RISK_APPROVED: risk approved
+    FUNDS_RESERVED --> COMPENSATING: risk rejected
+    RISK_APPROVED --> SETTLING: settlement requested
+    SETTLING --> COMPLETED: account settled
+    COMPENSATING --> REJECTED: funds released
     COMPLETED --> [*]
     REJECTED --> [*]
-    EXPIRED --> [*]
 ```
 
-Invalid or repeated transitions are rejected with a typed conflict and never mutate state. Successful transitions append immutable history.
+Every real transition appends immutable history. Consumers lock the transfer,
+verify the expected state, and commit history, processed-event state, and any new
+outbox row atomically. Valid stale events are ignored and recorded; illegal domain
+transitions remain guarded.
 
-## 7. Synchronous and asynchronous communication
+## Consistency, recovery, and health
 
-Synchronous HTTP is used for:
+- Financial balances and ledger history change only inside Account PostgreSQL
+  transactions.
+- Transfer, Account, and Risk publish only through local transactional outboxes.
+- Consumers assume at-least-once delivery and deduplicate durably.
+- Outbox rows become `PUBLISHED` only after Kafka acknowledgment and remain
+  retryable after broker failure or service restart.
+- PostgreSQL and Kafka contribute to readiness for their owning services.
+- Transfer Redis health is intentionally excluded from readiness; losing the cache
+  degrades performance, not correctness.
+- Expected business rejection is data, not an exception retry loop.
 
-- user-facing commands and queries;
-- read-only service lookups where immediate response is required;
-- health and management endpoints.
+This phase does not provide distributed serializability, global Kafka ordering, or
+instant cross-service consistency. It makes local commits recoverable and repeated
+delivery harmless.
 
-Kafka is used for:
+## Deliberate exclusions
 
-- transfer workflow commands and outcomes;
-- notifications;
-- audit-friendly domain event propagation;
-- failure recovery through replay.
-
-## 8. Failure handling
-
-- Every HTTP client has explicit connection and response timeouts.
-- Retries are restricted to safe, idempotent operations.
-- Kafka consumers use bounded retries followed by dead-letter topics.
-- Poison messages preserve the original payload, headers, exception class, and correlation ID.
-- Outbox publishing retries independently from the business transaction.
-- Redis unavailability degrades caching but must not invalidate PostgreSQL state.
-- Health endpoints distinguish liveness from readiness.
-
-## 9. Target repository structure
-
-Only directories with implemented or documented content are created. The OpenAPI contract and root PostgreSQL Compose model now exist; `apps` and broader `infra` trees will be added only in their delivery phases.
-
-```text
-ledgerflow-banking-platform/
-├── apps/
-│   └── operations-console/
-├── contracts/
-│   ├── asyncapi/
-│   └── openapi/
-├── docs/
-│   ├── adr/
-│   └── architecture/
-├── infra/
-│   ├── docker/
-│   ├── elastic/
-│   └── kafka/
-├── services/
-│   ├── api-gateway/
-│   ├── account-service/
-│   ├── transfer-service/
-│   ├── risk-service/
-│   └── notification-service/
-└── scripts/
-```
-
-## 10. Definition of done
-
-A feature is complete only when:
-
-- acceptance criteria are implemented;
-- unit and integration tests pass;
-- API or event contracts are updated;
-- database migrations are included;
-- logs and metrics support operational diagnosis;
-- failure behavior is tested;
-- documentation reflects the final design;
-- CI succeeds from a clean checkout.
+Authentication, authorization, frontend, real notifications, external banking
+integrations, production Kafka topology, multi-region deployment, and the Elastic
+Stack remain outside Phase 3.

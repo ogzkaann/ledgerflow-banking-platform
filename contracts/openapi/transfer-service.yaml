@@ -3,9 +3,10 @@ info:
   title: LedgerFlow Transfer Service API
   version: 1.0.0
   description: |
-    Accepts idempotent transfer workflow requests. Phase 2 does not verify accounts,
-    reserve or move funds, or publish Kafka messages. Every accepted request remains
-    PENDING until the Phase 3 workflow is implemented.
+    Accepts idempotent transfer workflow requests. A 202 response means the request
+    and its Kafka event intent are durably PENDING; account validation, reservation,
+    risk, and settlement continue asynchronously. Clients use the read and history
+    operations to observe completion or rejection.
 servers:
   - url: http://localhost:8082
 paths:
@@ -137,7 +138,7 @@ components:
         destinationAccountId:
           type: string
           format: uuid
-          description: Must differ from sourceAccountId. Account existence is not checked in Phase 2.
+          description: Must differ from sourceAccountId. Account existence and currency are validated asynchronously by Account Service.
         amount:
           type: string
           pattern: "^[0-9]+(?:\\.[0-9]{1,2})?$"

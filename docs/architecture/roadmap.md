@@ -4,60 +4,56 @@
 
 Status: complete.
 
-- system design and ADRs;
-- verified multi-module Maven workspace and wrapper;
-- minimal service applications and context tests;
-- coding standards and Maven verification CI;
-- accurate local development documentation.
+- multi-module Java 25 / Spring Boot 4.1 build;
+- architecture documents, ADRs, Maven quality gates, and CI.
 
 ## Phase 1 — Account and ledger core
 
-Status: complete for the defined Account Service capability.
+Status: complete.
 
-- account creation and local/test-only synthetic funding;
-- immutable ledger entries and materialized available/reserved balances;
-- Flyway-owned PostgreSQL 18.4 schema and Testcontainers integration tests;
-- pessimistic row locking with an additional version column;
-- reconciliation checks, OpenAPI 3.1, and RFC-compatible API errors.
-
-Transfers, reservations, and production funding remain outside Phase 1 and begin only in later phases.
+- account creation and local/test funding;
+- immutable ledger and materialized balances;
+- reconciliation, Flyway PostgreSQL, OpenAPI, and integration tests.
 
 ## Phase 2 — Transfer intake and idempotency
 
-Status: complete for durable transfer intake. Accepted transfers remain `PENDING`.
+Status: complete.
 
-- transfer REST API;
-- Redis and PostgreSQL idempotency protection;
-- transfer state machine;
-- transactional outbox;
-- OpenAPI contract.
+- transfer REST API and guarded state model;
+- PostgreSQL durable idempotency with optional Redis acceleration;
+- initial transactional outbox and OpenAPI contract.
 
 ## Phase 3 — Kafka workflow
 
-- funds reservation events;
-- idempotent consumers;
-- risk decisions;
-- settlement and compensation;
-- AsyncAPI contract and dead-letter topics.
+Status: complete after the full E2E suite passes.
 
-## Phase 4 — Resilience and observability
+- Account reservation, settlement, compensation, and immutable transfer ledger;
+- idempotent Account, Transfer, Risk, and Notification consumers;
+- deterministic durable risk decisions;
+- transactional outbox publishers for Transfer, Account, and Risk;
+- completed/rejected notifications;
+- Kafka KRaft Compose topology, deterministic topics, retries, DLTs, and readiness;
+- AsyncAPI contract and real Kafka/four-database end-to-end verification.
 
-- retry and timeout policies;
-- structured JSON logs and correlation propagation;
-- Elasticsearch, Logstash, and Kibana dashboards;
-- health, metrics, and operational runbooks.
+## Phase 4 — Security and observability
+
+- authentication and authorization;
+- structured JSON logging and expanded Micrometer dashboards;
+- Elasticsearch, Logstash, and Kibana;
+- production-oriented alerting and operational runbooks.
 
 ## Phase 5 — Operations console
 
 - React account and transfer views;
 - transfer creation and status timeline;
-- failure and rejection inspection;
-- accessible loading, empty, and error states.
+- failure/rejection inspection and accessible UI states.
 
 ## Phase 6 — Quality proof
 
-- GitHub Actions quality gates;
-- end-to-end Docker Compose tests;
-- k6 load tests and documented results;
-- architecture review and release `v1.0.0`;
-- short demonstration video.
+- k6 load tests and reproducible reports;
+- architecture review and production-readiness gap analysis;
+- release `v1.0.0` and demonstration video.
+
+Real payment networks, real notification delivery, regulatory certification,
+multi-region deployment, and production Kafka remain explicitly outside the
+portfolio roadmap until separately designed.

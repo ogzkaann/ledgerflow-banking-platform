@@ -1,81 +1,94 @@
 # LedgerFlow
 
-LedgerFlow is a portfolio project for exploring resilient Java microservice design in a digital-banking domain. The repository provides a verified multi-module build and production-style Account and Transfer Services.
+LedgerFlow is an educational Java microservice platform that demonstrates a durable,
+eventually consistent bank-transfer workflow. It does not process real money and is
+not intended for production banking use.
 
-> **Portfolio scope:** LedgerFlow is an educational system. It does not process real money and is not intended for production banking use.
+## Implemented services
 
-## Current foundation
+| Module | Port | Phase 3 responsibility |
+| --- | ---: | --- |
+| API Gateway | 8080 | Routes Account, Transfer, and demo Notification APIs |
+| Account Service | 8081 | Accounts, balances, immutable ledger, reservations, settlement, compensation |
+| Transfer Service | 8082 | Idempotent intake, workflow state/history, commands and terminal events |
+| Risk Service | 8083 | Deterministic amount/reference decision with a durable audit record |
+| Notification Service | 8084 | Idempotent persistence of final completion/rejection notifications |
 
-The Maven reactor contains these independently packaged applications:
+Each stateful service owns an independent PostgreSQL database. Transfer Service also
+uses Redis as an optional idempotency accelerator; PostgreSQL remains authoritative.
+Kafka carries the asynchronous workflow with at-least-once delivery. Transactional
+outboxes and same-transaction `processed_events` records provide exactly-once
+business effects without claiming exactly-once transport.
 
-| Module | Application name | Default port | Current capability |
-| --- | --- | ---: | --- |
-| `api-gateway` | `api-gateway` | 8080 | Reactive Spring Cloud Gateway foundation and health endpoint |
-| `account-service` | `account-service` | 8081 | Account creation, reads, immutable ledger, reconciliation, and local/test synthetic funding |
-| `transfer-service` | `transfer-service` | 8082 | Idempotent transfer intake, state history, PostgreSQL, Redis, and transactional outbox |
-| `risk-service` | `risk-service` | 8083 | Spring MVC application foundation and health endpoint |
-| `notification-service` | `notification-service` | 8084 | Spring MVC application foundation and health endpoint |
+## Transfer lifecycle
 
-Account and Transfer Services use independent framework-free domain models, ports and adapters, Flyway-owned PostgreSQL schemas, RFC-compatible errors, and OpenAPI 3.1 contracts. Transfer acceptance creates a `PENDING` workflow request and pending outbox event; it does not move money.
+An accepted HTTP request is `PENDING`, not transferred. The happy path is:
 
-## Prerequisites
+```text
+PENDING -> FUNDS_RESERVED -> RISK_APPROVED -> SETTLING -> COMPLETED
+```
+
+Risk rejection uses compensation:
+
+```text
+PENDING -> FUNDS_RESERVED -> COMPENSATING -> REJECTED
+```
+
+Reservation failures move directly from `PENDING` to `REJECTED`. Only settlement
+creates a source debit and destination credit. Releasing a reservation creates no
+transfer ledger entry.
+
+## Prerequisites and verification
 
 - Java 25 LTS
 - Git
-- Docker Desktop or a compatible Docker Engine for PostgreSQL, Redis, and the full verification suite
-- A network connection for the Maven Wrapper's first run
-
-A system Maven installation and host PostgreSQL or Redis installations are not required. Kafka, Node.js, and frontend tooling are not used yet.
-
-## Build and test
-
-On macOS, Linux, or Git Bash:
-
-```bash
-./mvnw clean verify
-./mvnw test
-```
-
-On Windows PowerShell:
+- Docker Desktop or a compatible Docker Engine
 
 ```powershell
+.\mvnw.cmd spotless:apply
 .\mvnw.cmd clean verify
-.\mvnw.cmd test
+docker compose config
 ```
 
-Start PostgreSQL and run the Account Service local profile from the repository root:
+Start the complete local infrastructure:
 
-```bash
-docker compose up -d postgres
-./mvnw -pl services/account-service spring-boot:run -Dspring-boot.run.profiles=local
+```powershell
+Copy-Item .env.example .env
+docker compose up -d
 ```
 
-Then query `http://localhost:8081/actuator/health/readiness`. See the [Account Service guide](docs/services/account-service.md) for API examples and the [local development guide](docs/development/local-development.md) for Windows equivalents.
+Run the five applications in separate terminals. Use the `local` profile for
+Account Service so its synthetic funding endpoint is available:
 
-Start Transfer PostgreSQL and Redis with `docker compose up -d transfer-postgres redis`, then run `./mvnw -pl services/transfer-service spring-boot:run -Dspring-boot.run.profiles=local`.
+```powershell
+.\mvnw.cmd -pl services/account-service spring-boot:run "-Dspring-boot.run.profiles=local"
+.\mvnw.cmd -pl services/transfer-service spring-boot:run
+.\mvnw.cmd -pl services/risk-service spring-boot:run
+.\mvnw.cmd -pl services/notification-service spring-boot:run "-Dspring-boot.run.profiles=local"
+.\mvnw.cmd -pl services/api-gateway spring-boot:run
+```
 
-## Planned architecture
+See [local development](docs/development/local-development.md) for the complete
+demo procedure and environment overrides.
 
-Later phases will add reservations, Kafka publication and consumers, risk, settlement, security, centralized observability, and a React operations console.
+## Contracts and design
 
-Account and Transfer Services own separate databases. Redis accelerates Transfer idempotency without becoming authoritative. No module includes Kafka, Spring Security, or frontend dependencies yet.
-
-## Documentation
-
-- [Local development](docs/development/local-development.md)
-- [Account Service](docs/services/account-service.md)
-- [Account Service OpenAPI](contracts/openapi/account-service.yaml)
-- [Transfer Service](docs/services/transfer-service.md)
-- [Transfer Service OpenAPI](contracts/openapi/transfer-service.yaml)
-- [Verified technology stack](docs/technology-stack.md)
+- [Kafka AsyncAPI](contracts/asyncapi/ledgerflow-events.yaml)
+- [Account OpenAPI](contracts/openapi/account-service.yaml)
+- [Transfer OpenAPI](contracts/openapi/transfer-service.yaml)
 - [System design](docs/architecture/system-design.md)
-- [Quality attributes](docs/architecture/quality-attributes.md)
 - [Event model](docs/architecture/event-model.md)
 - [Testing strategy](docs/architecture/testing-strategy.md)
-- [Security model](docs/architecture/security.md)
-- [Delivery roadmap](docs/architecture/roadmap.md)
-- [Architecture Decision Records](docs/adr/)
+- [Account Service](docs/services/account-service.md)
+- [Transfer Service](docs/services/transfer-service.md)
+- [Risk Service](docs/services/risk-service.md)
+- [Notification Service](docs/services/notification-service.md)
+- [Phase 3 verification record](docs/development/phase3-verification.md)
+- [Technology stack](docs/technology-stack.md)
+- [Roadmap](docs/architecture/roadmap.md)
 
 ## Repository status
 
-Phases 0, 1, and 2 are complete. Transfer requests remain `PENDING`; cross-service Kafka workflow execution is deferred to Phase 3.
+Phases 0 through 3 are implemented. Phase 4 deliberately retains authentication,
+production deployment, Elastic observability, real notification delivery, and
+external banking integrations.

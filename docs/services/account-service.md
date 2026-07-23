@@ -1,129 +1,105 @@
 # Account Service
 
-## Responsibility and boundary
+Account Service is the sole owner of accounts, available and reserved balances,
+immutable financial ledger entries, and transfer reservations. Its framework-free
+domain is coordinated through application ports and persistence/Kafka adapters.
 
-The Account Service owns LedgerFlow accounts, their materialized balances, and their immutable ledger history. It currently supports account creation, account and ledger reads, reconciliation, and synthetic local/test credits. Each account has one centrally supported currency: EUR, USD, or GBP.
-
-This is an educational service and does not connect to a payment network. Transfers, reservations, real funding, authentication, events, and external customer data are deliberately absent.
-
-## Design
-
-The module uses ports and adapters:
-
-- `domain` contains framework-free account, money, ledger, invariant, reconciliation, and repository-port types;
-- `application` owns transaction boundaries and coordinates domain operations through ports;
-- `adapter.in.web` maps versioned HTTP DTOs and RFC 9457-compatible errors;
-- `adapter.out.persistence` maps domain objects to package-private JPA entities and Spring Data repositories.
-
-Money uses `BigDecimal` with a deterministic scale of two and precision of 19. JSON monetary values are strings. JPA entities never leave the persistence adapter.
-
-## Database model
-
-Flyway migration `V1__create_account_ledger.sql` creates the schema. Hibernate runs with `ddl-auto: validate`; it never creates or updates tables.
+## Reservation and money rules
 
 ```mermaid
-erDiagram
-    ACCOUNTS ||--o{ LEDGER_ENTRIES : records
-    ACCOUNTS {
-        uuid id PK
-        varchar owner_reference
-        varchar currency
-        varchar status
-        numeric available_balance
-        numeric reserved_balance
-        bigint version
-        timestamptz created_at
-        timestamptz updated_at
-    }
-    LEDGER_ENTRIES {
-        uuid id PK
-        uuid account_id FK
-        varchar entry_type
-        numeric amount
-        varchar currency
-        varchar reference
-        timestamptz created_at
-    }
+stateDiagram-v2
+    [*] --> RESERVED: accepted reservation
+    RESERVED --> SETTLED: settlement command
+    RESERVED --> RELEASED: compensation command
+    SETTLED --> [*]
+    RELEASED --> [*]
 ```
 
-Both balance and ledger amount columns are `NUMERIC(19,2)`. Check constraints protect supported currencies, statuses, non-negative balances, positive ledger amounts, nonblank references, and non-negative versions. `(account_id, reference)` is unique. Ledger reads use an index on `(account_id, created_at DESC, id DESC)` for newest-first order with a stable UUID tie-breaker.
+A settled reservation cannot be released and a released reservation cannot be
+settled. Typed domain exceptions guard both rules.
 
-The application exposes no ledger update or delete operation. Entries are append-only from the application perspective.
+| Operation | Available | Reserved | Ledger |
+| --- | --- | --- | --- |
+| Reserve | `source -= amount` | `source += amount` | none |
+| Settle source | unchanged | `source -= amount` | deterministic `DEBIT` |
+| Settle destination | `destination += amount` | unchanged | deterministic `CREDIT` |
+| Release | `source += amount` | `source -= amount` | none |
 
-## Funding transaction and concurrency
+Settlement locks source and destination accounts in ascending UUID order. The
+reservation, both balances, both ledger rows, processed event, and result outbox
+event commit in one PostgreSQL transaction. Ledger references are unique:
+`transfer:{transferId}:debit` and `transfer:{transferId}:credit`. Redelivery cannot
+move money or append ledger twice.
 
-Synthetic funding executes in one Spring transaction:
+## Reservation validation
 
-1. load the account with PostgreSQL `SELECT ... FOR UPDATE` through JPA pessimistic write locking;
-2. require an active account and validate a positive, two-decimal amount;
-3. reject a reference already used by the account;
-4. insert one credit ledger entry;
-5. update available balance while preserving reserved balance;
-6. commit both writes together.
+`ledgerflow.transfer.initiated.v1` is rejected as a normal workflow outcome when:
 
-The row lock serializes balance-changing commands per account and prevents lost updates. The JPA `@Version`/database `version` column is an additional safety and audit signal; no unbounded retry loop is used. The database unique constraint remains the final duplicate-reference defense for races.
+- source or destination does not exist;
+- either account is inactive;
+- currencies differ from the transfer;
+- source and destination are equal;
+- available funds are insufficient.
 
-Reconciliation calculates signed credits minus debits and compares that result with `available balance + reserved balance`. A mismatch is returned as an explicit result and logged with stable identifiers; the domain verifier can also raise a typed reconciliation failure.
+Stable reasons are `SOURCE_ACCOUNT_NOT_FOUND`,
+`DESTINATION_ACCOUNT_NOT_FOUND`, `SOURCE_ACCOUNT_INACTIVE`,
+`DESTINATION_ACCOUNT_INACTIVE`, `CURRENCY_MISMATCH`,
+`INVALID_ACCOUNT_PAIR`, and `INSUFFICIENT_FUNDS`.
 
-## HTTP API
+## Kafka responsibilities
 
-The source-of-truth contract is [`contracts/openapi/account-service.yaml`](../../contracts/openapi/account-service.yaml).
+Account consumes `ledgerflow.transfer.commands.v1` and dispatches only the known
+version-1 commands:
 
-| Method and path | Result |
-| --- | --- |
-| `POST /api/v1/accounts` | Create an active zero-balance account; returns `201` and `Location` |
-| `GET /api/v1/accounts/{accountId}` | Read current account state |
-| `GET /api/v1/accounts/{accountId}/ledger?page=0&size=20` | Read newest-first ledger page; size is limited to 100 |
-| `POST /api/v1/accounts/{accountId}/test-funding` | Add a synthetic credit; only present in `local` and `test` profiles |
+- `ledgerflow.transfer.initiated.v1`;
+- `ledgerflow.transfer.settlement-requested.v1`;
+- `ledgerflow.transfer.compensation-requested.v1`.
 
-Example:
+Its transactional outbox publishes these outcomes to
+`ledgerflow.account.events.v1`:
 
-```bash
-curl -i -X POST http://localhost:8081/api/v1/accounts \
-  -H "Content-Type: application/json" \
-  -d '{"ownerReference":"customer-001","currency":"EUR"}'
+- `ledgerflow.account.funds-reserved.v1`;
+- `ledgerflow.account.funds-reservation-rejected.v1`;
+- `ledgerflow.account.transfer-settled.v1`;
+- `ledgerflow.account.funds-released.v1`.
 
-curl http://localhost:8081/api/v1/accounts/ACCOUNT_ID
+The transfer UUID is the record key. Processed-event state, account/reservation
+changes, ledger rows, and the outbound event are atomic. Technical failures use
+bounded retry/backoff; malformed or unsupported records reach
+`ledgerflow.transfer.commands.dlt.v1`.
 
-curl -i -X POST http://localhost:8081/api/v1/accounts/ACCOUNT_ID/test-funding \
-  -H "Content-Type: application/json" \
-  -d '{"amount":"1000.00","reference":"initial-funding-001"}'
+## Persistence
 
-curl "http://localhost:8081/api/v1/accounts/ACCOUNT_ID/ledger?page=0&size=20"
+`V1__create_account_ledger.sql` owns accounts and immutable ledger entries.
+`V2__add_transfer_workflow.sql` adds:
+
+- `transfer_reservations`, unique by transfer ID, with positive-amount, currency,
+  account-pair, status, version, and foreign-key constraints;
+- `processed_events`, unique by event ID;
+- `outbox_events`, including status, attempt count, publication time, and
+  deterministic polling indexes.
+
+Hibernate uses `ddl-auto: validate`. PostgreSQL is authoritative and JPA entities
+never leave the adapter.
+
+## HTTP and local use
+
+The [OpenAPI contract](../../contracts/openapi/account-service.yaml) covers account
+create/read, ledger reads, and local/test synthetic funding. Funding is not a
+production banking integration and is available only in `local` and `test`
+profiles.
+
+```powershell
+docker compose up -d postgres kafka kafka-init
+.\mvnw.cmd -pl services/account-service spring-boot:run "-Dspring-boot.run.profiles=local"
 ```
 
-Validation failures and malformed identifiers return `400`; missing accounts return `404`; duplicate funding references and invalid account state return `409`; unsupported currencies return `422`. Responses use `application/problem+json` without database details or stack traces.
+Readiness at `/actuator/health/readiness` includes PostgreSQL and Kafka.
 
-## Local PostgreSQL
+## Verification
 
-Docker Desktop or a compatible Docker Engine is required. From the repository root:
-
-```bash
-cp .env.example .env
-docker compose up -d postgres
-docker compose ps
-./mvnw -pl services/account-service spring-boot:run -Dspring-boot.run.profiles=local
-```
-
-On Windows PowerShell, copy `.env.example` to `.env` and replace `./mvnw` with `.\mvnw.cmd`. The service uses safe matching defaults when `.env` is not copied. Readiness, including the database contributor, is available at `http://localhost:8081/actuator/health/readiness`.
-
-Stop the service with `Ctrl+C`, then stop PostgreSQL while retaining its named volume:
-
-```bash
-docker compose down
-```
-
-`docker compose down -v` also deletes local account data and should be used only when a clean database is intended.
-
-## Test strategy
-
-- plain unit tests cover money, account mutation, reconciliation, and application orchestration/failure paths;
-- ArchUnit prevents domain dependencies on Spring, JPA, servlet, application, or adapter packages;
-- Testcontainers runs PostgreSQL 18.4 for Flyway/JPA validation, database constraints, unique references, atomic rollback, persistence, ordering, pagination, reconciliation, and concurrent credits;
-- MockMvc uses the same PostgreSQL container and the `test` profile for endpoint, validation, profile-gated funding, conflict, and ProblemDetail behavior.
-
-Integration tests do not use H2 and do not silently skip when Docker is unavailable.
-
-## Deferred deliberately
-
-Transfer debits, reservations, Kafka/outbox behavior, Redis, security, real payment integrations, risk processing, notifications, and the React console remain future roadmap phases. The debit enum exists so reconciliation has the correct signed model, but no debit API or use case is implemented yet.
+Unit and PostgreSQL Testcontainers tests cover reservation transitions, business
+rejections, duplicate events, settlement, release, ledger uniqueness,
+reconciliation, transaction rollback, constraints, Flyway/JPA validation, and the
+original account API. The full Kafka workflow test additionally proves completed
+and compensated flows against real Kafka, four PostgreSQL databases, and Redis.

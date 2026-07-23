@@ -1,48 +1,80 @@
 # Testing Strategy
 
-## Test pyramid
+LedgerFlow tests business invariants at the cheapest boundary that proves them,
+then repeats critical money paths against real infrastructure. H2 and mocked Kafka
+are not substitutes for the main integration coverage.
 
-### Unit tests
+## Layers
 
-- Account money, mutation, reconciliation, and application orchestration (implemented);
-- Transfer money invariants, complete state-transition matrix, and canonical request fingerprints (implemented);
-- deterministic risk rules;
-- idempotency decision logic;
-- mapping and validation edge cases.
+- Plain unit tests cover money arithmetic, account and reservation guards,
+  transfer transition legality, risk-rule determinism, fingerprints, and
+  reconciliation.
+- ArchUnit keeps Account, Transfer, and Risk domains independent of Spring,
+  persistence adapters, and each other.
+- PostgreSQL 18.4 Testcontainers run for Account, Transfer, Risk, and Notification.
+  Flyway migration and JPA validation execute in every service fixture.
+- Redis 8.8.0 Testcontainers prove cache hit/miss, repair, TTL, and graceful
+  PostgreSQL fallback.
+- Apache Kafka 4.1.2 Testcontainers prove JSON publication, transfer-ID keys,
+  broker acknowledgement before outbox publication, DLT routing, and the complete
+  asynchronous workflow.
+- Gateway tests inspect the configured route definitions and ensure only Account,
+  Transfer, and Notification business paths are exposed.
 
-### Slice tests
+## Financial correctness
 
-- Spring MVC request validation and error responses (implemented with the Account PostgreSQL integration fixture);
-- JPA mappings and repository queries (implemented for Account Service);
-- Kafka serialization and listener configuration;
-- Transfer API validation and Redis degradation adapters (implemented).
+Account integration tests prove reservation business outcomes, pessimistic locks,
+unique reservations, guarded settlement/release, duplicate commands, deterministic
+ledger references, rollback, and reconciliation after settlement. Releasing funds
+must not append transfer ledger entries.
 
-### Integration tests
+Transfer integration tests prove every workflow transition, two-step approval,
+immutable sequence history, stale/duplicate handling, atomic processed-event and
+outbox writes, and terminal-state protection.
 
-Account Service integration tests run real PostgreSQL 18.4 with Testcontainers. Transfer integration tests run independent PostgreSQL 18.4 and Redis 8.8.0 containers and verify Flyway/JPA validation, JSONB outbox intent, REST behavior, durable replay/conflict semantics, cache repair and TTL, and concurrent same-key creation. H2 is not used. Kafka containers remain deferred.
+Risk tests prove threshold approval/rejection, blocked markers, stable rule
+version, one decision per transfer, duplicate delivery, and rollback if outbox
+creation fails. Notification tests prove one record per final event and no
+intermediate notification.
 
-### Contract tests
+## Full Kafka workflow
 
-The implemented Account and Transfer endpoints have OpenAPI 3.1 source-of-truth contracts. Automated schema linting and future AsyncAPI compatibility fixtures remain roadmap work.
+`KafkaWorkflowE2EIT` starts four independent PostgreSQL containers, Redis, and a
+real Kafka broker, then starts all four business service contexts:
 
-### End-to-end tests
+1. happy path starts source at `1000.00`, destination at `100.00`, transfers
+   `125.50`, and asserts `874.50`/`0.00` source, `225.50` destination,
+   `COMPLETED`, one debit, one credit, one notification, and published outboxes;
+2. blocked-marker rejection proves reservation then compensation, restored
+   `1000.00`/`0.00`, no transfer ledger rows, `REJECTED`, and one notification;
+3. malformed input is recovered to the matching DLT with original-record metadata.
 
-A Docker Compose environment will validate:
+All asynchronous assertions use bounded Awaitility polling. Tests never use long,
+arbitrary sleeps.
 
-1. successful transfer;
-2. insufficient funds rejection;
-3. risk rejection and reservation release;
-4. duplicate HTTP request;
-5. duplicate Kafka event;
-6. service restart during processing;
-7. poison message routed to a dead-letter topic.
+## Failure model
 
-### Performance tests
+The suite distinguishes expected business rejection from technical failure:
 
-k6 scripts report throughput, latency percentiles, and error rates. Performance results will be committed as reproducible reports, not screenshots without configuration.
+- insufficient funds, missing/inactive accounts, invalid pairs, currency mismatch,
+  and risk rejection produce normal workflow events;
+- duplicate IDs and stale valid events acknowledge without repeated mutation;
+- Kafka send failure leaves an outbox row retryable with the same event ID;
+- a service restart reads committed pending rows from PostgreSQL;
+- malformed or unsupported messages reach DLT after the configured classification;
+- local transaction failure rolls back processed event, business data, and outbox.
 
-## Coverage policy
+The project claims at-least-once transport and idempotent business effects—not a
+distributed exactly-once transaction.
 
-Coverage is a diagnostic, not the goal. Domain and application layers require branch coverage for critical workflows. Infrastructure code requires meaningful integration coverage. A high percentage cannot replace missing failure tests.
+## Verification command
 
-ArchUnit enforces framework and adapter isolation for both Account and Transfer domains, including a prohibition on Transfer importing Account packages.
+```powershell
+.\mvnw.cmd spotless:apply
+.\mvnw.cmd clean verify
+docker compose config
+git diff --check
+```
+
+CI runs the Maven verification lifecycle from a clean checkout. Coverage is a
+diagnostic; passing percentages cannot replace missing invariant/failure tests.
