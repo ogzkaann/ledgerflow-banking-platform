@@ -19,8 +19,15 @@ Versions were verified on 2026-07-18 using project-owned documentation, release 
 | Spring Kafka | Boot 4.1 managed | Account, Transfer, Risk, Notification | Explicit JSON, bounded retries, DLT recovery, producers and consumers |
 | Testcontainers | 2.0.5 | Active in all stateful services | Proves migrations, persistence, Redis/Kafka behavior, concurrency, and E2E workflow |
 | Flyway | 12.4.0 | Active in all stateful services | Schema owner with database-specific PostgreSQL support |
+| Keycloak | 26.7.0 | Core local Compose | OIDC issuer, RS256 keys, audience and operations roles |
+| Prometheus | 3.13.1 LTS | Optional observability profile | OAuth2-authenticated metric collection and alert evaluation |
+| Grafana | 13.0.2 | Optional observability profile | Provisioned workflow, HTTP/JVM, Kafka, and outbox dashboards |
+| Elastic Stack | 9.3.6 | Optional observability profile | Matched Elasticsearch, Logstash, and Kibana versions for ECS JSON search |
+| CycloneDX Maven plugin | 2.9.2 | Maven verify and security CI | Aggregate JSON software bill of materials |
 
-The POM also pins Maven Compiler 3.15.0, Enforcer 3.6.3, Surefire and Failsafe 3.5.6, Spotless 3.8.0, Palantir Java Format 2.96.0, and JaCoCo 0.8.15.
+The POM also pins Maven Compiler 3.15.0, Enforcer 3.6.3, Surefire and Failsafe
+3.5.6, Spotless 3.8.0, Palantir Java Format 2.96.0, JaCoCo 0.8.15, and
+CycloneDX 2.9.2.
 
 ## Planned frontend baseline
 

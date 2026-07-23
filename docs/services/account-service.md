@@ -96,6 +96,15 @@ docker compose up -d postgres kafka kafka-init
 
 Readiness at `/actuator/health/readiness` includes PostgreSQL and Kafka.
 
+All business routes independently validate Keycloak RS256 JWTs. Operator/admin can
+create accounts; operator/auditor/admin can read accounts and ledgers; synthetic
+funding requires admin. Metrics and info require admin, while liveness/readiness
+remain public. Correlation IDs are bounded and log-safe.
+
+Prometheus exposes HTTP/JVM/Hikari metrics plus account workflow, Kafka listener,
+DLT, and outbox publication counters. The `observability` profile writes ECS JSON
+with correlation/event/causation/transfer context and bounded rotation.
+
 ## Verification
 
 Unit and PostgreSQL Testcontainers tests cover reservation transitions, business

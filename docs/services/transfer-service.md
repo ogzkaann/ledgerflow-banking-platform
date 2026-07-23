@@ -80,6 +80,16 @@ docker compose up -d transfer-postgres redis kafka kafka-init
 
 Readiness includes PostgreSQL and Kafka but deliberately excludes Redis.
 
+All business routes independently validate Keycloak RS256 JWTs. Operator/admin can
+create transfers; operator/auditor/admin can read state and history. Metrics and
+info require admin, while liveness/readiness remain public. Gateway rate limiting
+uses a separate Redis namespace and does not alter Transfer Service’s PostgreSQL
+idempotency authority.
+
+Prometheus exposes transfer acceptance, workflow completion/rejection, Kafka
+listener/DLT, outbox backlog and publication, HTTP/JVM, and Hikari signals. The
+`observability` profile writes ECS JSON with bounded correlation and workflow MDC.
+
 ## Verification
 
 Domain and PostgreSQL tests cover every Phase 3 transition, immutable history,

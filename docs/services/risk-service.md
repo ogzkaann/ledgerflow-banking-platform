@@ -47,3 +47,9 @@ Readiness includes Risk PostgreSQL and Kafka. Unit tests prove rule ordering and
 threshold behavior. PostgreSQL Testcontainers tests prove decision/outbox
 atomicity, blocked-marker rejection, uniqueness, and durable deduplication. The
 cross-service E2E test proves the decision drives settlement or compensation.
+
+Risk exposes no business API. It independently validates Keycloak JWTs on
+operational endpoints: metrics/info require admin and liveness/readiness are
+public. Prometheus records approved/rejected decisions, Kafka listener/DLT, outbox
+publication, HTTP/JVM, and Hikari signals. The `observability` profile writes
+bounded ECS JSON workflow context.

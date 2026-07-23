@@ -15,7 +15,8 @@ docker compose config
 ## Local infrastructure
 
 Copy the safe demo defaults, then start four independent PostgreSQL databases,
-Redis, a single-node Kafka 4.1.2 KRaft broker, and deterministic topic creation:
+Redis, a single-node Kafka 4.1.2 KRaft broker, deterministic topic creation, and
+the local Keycloak realm:
 
 ```powershell
 Copy-Item .env.example .env
@@ -25,10 +26,26 @@ docker compose logs kafka-init
 ```
 
 Default host ports are Account PostgreSQL 5432, Transfer PostgreSQL 5433, Risk
-PostgreSQL 5434, Notification PostgreSQL 5435, Redis 6379, and Kafka 9092.
+PostgreSQL 5434, Notification PostgreSQL 5435, Redis 6379, Kafka 9092, and
+Keycloak 8090.
 `.env.example` documents every override. Automatic topic creation is disabled;
 `kafka-init` creates four workflow and four DLT topics with three partitions.
 This is a local/demo topology, not a production Kafka cluster.
+
+If Windows reserves a default host port, override only the corresponding
+host-port value in `.env` (for example `ACCOUNT_POSTGRES_PORT=15432` or
+`GRAFANA_PORT=13000`). Update the matching host-side application URL when the
+application connects through that port; container ports and Compose
+service-to-service URLs do not need to change.
+
+The optional observability profile requires roughly 6 GB of Docker memory:
+
+```powershell
+docker compose --profile observability up -d
+```
+
+It starts Prometheus on 9091, Grafana on 3000, Elasticsearch on 9200, Kibana on
+5601, and Logstash monitoring on 9600.
 
 ## Run applications
 
@@ -41,6 +58,9 @@ Run each command in its own terminal:
 .\mvnw.cmd -pl services/notification-service spring-boot:run "-Dspring-boot.run.profiles=local"
 .\mvnw.cmd -pl services/api-gateway spring-boot:run
 ```
+
+Add `observability` to the Spring profile list for all five applications when
+using the optional stack; Account uses `local,observability`.
 
 The Gateway is `http://localhost:8080`; direct service ports are 8081–8084.
 Readiness is `/actuator/health/readiness` on each service. Gateway routes only:
@@ -55,24 +75,48 @@ Risk and Actuator are intentionally not exposed through broad Gateway routes.
 Environment-configurable upstream URLs are `ACCOUNT_SERVICE_URL`,
 `TRANSFER_SERVICE_URL`, and `NOTIFICATION_SERVICE_URL`.
 
+Liveness and readiness are public. All business APIs require a bearer token; each
+downstream service revalidates it. Metrics and info require admin.
+
 ## Manual happy-path demo
+
+Obtain an admin token from the local confidential verification client:
+
+```powershell
+$tokenResponse = Invoke-RestMethod -Method Post `
+  -Uri "http://localhost:8090/realms/ledgerflow/protocol/openid-connect/token" `
+  -ContentType "application/x-www-form-urlencoded" `
+  -Body @{
+    grant_type = "client_credentials"
+    client_id = "ledgerflow-ops-cli"
+    client_secret = $env:LEDGERFLOW_OPS_CLI_SECRET
+  }
+$authHeaders = @{ Authorization = "Bearer $($tokenResponse.access_token)" }
+```
+
+The secret must match `.env`; the checked-in `.env.example` value is deliberately
+local-only.
 
 Create two accounts through the Gateway:
 
 ```powershell
 $source = Invoke-RestMethod -Method Post -Uri http://localhost:8080/api/v1/accounts `
+  -Headers $authHeaders `
   -ContentType application/json `
   -Body '{"ownerReference":"demo-source","currency":"EUR"}'
 $destination = Invoke-RestMethod -Method Post -Uri http://localhost:8080/api/v1/accounts `
+  -Headers $authHeaders `
   -ContentType application/json `
   -Body '{"ownerReference":"demo-destination","currency":"EUR"}'
 
 Invoke-RestMethod -Method Post `
   -Uri "http://localhost:8080/api/v1/accounts/$($source.accountId)/test-funding" `
+  -Headers $authHeaders `
   -ContentType application/json `
   -Body '{"amount":"1000.00","reference":"demo-source-funding"}'
 Invoke-RestMethod -Method Post `
   -Uri "http://localhost:8080/api/v1/accounts/$($destination.accountId)/test-funding" `
+  -Headers $authHeaders `
   -ContentType application/json `
   -Body '{"amount":"100.00","reference":"demo-destination-funding"}'
 ```
@@ -81,6 +125,7 @@ Accept a transfer. The first response is `PENDING`:
 
 ```powershell
 $headers = @{
+  Authorization = $authHeaders.Authorization
   "Idempotency-Key" = "demo-transfer-001"
   "X-Correlation-Id" = "demo-correlation-001"
 }
@@ -98,13 +143,13 @@ $transfer = Invoke-RestMethod -Method Post -Uri http://localhost:8080/api/v1/tra
 Poll `GET /api/v1/transfers/{id}` until `COMPLETED`, then inspect:
 
 ```powershell
-Invoke-RestMethod "http://localhost:8080/api/v1/transfers/$($transfer.transferId)"
-Invoke-RestMethod "http://localhost:8080/api/v1/transfers/$($transfer.transferId)/history"
-Invoke-RestMethod "http://localhost:8080/api/v1/accounts/$($source.accountId)"
-Invoke-RestMethod "http://localhost:8080/api/v1/accounts/$($destination.accountId)"
-Invoke-RestMethod "http://localhost:8080/api/v1/accounts/$($source.accountId)/ledger?page=0&size=20"
-Invoke-RestMethod "http://localhost:8080/api/v1/accounts/$($destination.accountId)/ledger?page=0&size=20"
-Invoke-RestMethod "http://localhost:8080/api/v1/notifications?transferId=$($transfer.transferId)"
+Invoke-RestMethod "http://localhost:8080/api/v1/transfers/$($transfer.transferId)" -Headers $authHeaders
+Invoke-RestMethod "http://localhost:8080/api/v1/transfers/$($transfer.transferId)/history" -Headers $authHeaders
+Invoke-RestMethod "http://localhost:8080/api/v1/accounts/$($source.accountId)" -Headers $authHeaders
+Invoke-RestMethod "http://localhost:8080/api/v1/accounts/$($destination.accountId)" -Headers $authHeaders
+Invoke-RestMethod "http://localhost:8080/api/v1/accounts/$($source.accountId)/ledger?page=0&size=20" -Headers $authHeaders
+Invoke-RestMethod "http://localhost:8080/api/v1/accounts/$($destination.accountId)/ledger?page=0&size=20" -Headers $authHeaders
+Invoke-RestMethod "http://localhost:8080/api/v1/notifications?transferId=$($transfer.transferId)" -Headers $authHeaders
 ```
 
 Expected balances are source `874.50` available and `0.00` reserved, destination
@@ -133,6 +178,10 @@ docker compose exec risk-postgres psql -U ledgerflow_risk -d ledgerflow_risk `
 
 The same correlation ID should appear in Transfer, Account, Risk, and Notification
 records/logs.
+
+Search it in Kibana when the observability profile is active, or query Prometheus
+and the provisioned Grafana dashboards as described in
+[observability operations](../operations/observability.md).
 
 ## Resilience checks
 
@@ -167,5 +216,10 @@ deletes local data and should be used only when that loss is intended.
 - Port collision: change the corresponding `.env` port and matching service URL.
 - Unready database/Kafka: inspect `docker compose ps` and service logs.
 - Redis down: Transfer remains safe and ready through PostgreSQL, with slower
-  idempotency lookup.
+  idempotency lookup; Gateway protected writes fail closed if rate limiting cannot
+  be evaluated.
+- `401`: obtain a fresh token and verify issuer/audience configuration.
+- `403`: confirm the client service account has the required realm role.
+- Observability stack unready: the workflow remains usable; inspect the relevant
+  [runbook](../operations/runbooks).
 - Formatting failure: run `.\mvnw.cmd spotless:apply` and review the diff.

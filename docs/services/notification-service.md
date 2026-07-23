@@ -26,6 +26,10 @@ GET /api/v1/notifications?transferId={transferId}
 It is routed by the API Gateway for demonstration and inspection. There is no
 notification creation or mutation endpoint.
 
+The Gateway and Notification Service both require operator, auditor, or admin for
+this read. Notification independently validates the Keycloak token. Metrics and
+info require admin; liveness/readiness remain public.
+
 ## Persistence, failures, and verification
 
 `V1__create_notifications.sql` creates `notifications` and `processed_events`, with
@@ -43,3 +47,6 @@ docker compose up -d notification-postgres kafka kafka-init
 PostgreSQL integration tests cover completion, rejection, duplicate delivery,
 ignored intermediate events, persistence, and the inspection API. The real Kafka
 E2E suite proves one notification after completed and compensated workflows.
+Prometheus records notification, Kafka listener, and DLT counters alongside
+HTTP/JVM/Hikari metrics; the `observability` profile writes ECS JSON with bounded
+correlation and workflow MDC.

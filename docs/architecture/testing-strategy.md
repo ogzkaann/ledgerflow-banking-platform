@@ -20,6 +20,14 @@ are not substitutes for the main integration coverage.
   asynchronous workflow.
 - Gateway tests inspect the configured route definitions and ensure only Account,
   Transfer, and Notification business paths are exposed.
+- Gateway and resource-service security tests prove safe `401`/`403` responses,
+  the role matrix, strict correlation identifiers, CORS rejection, and protected
+  Actuator access.
+- A real RSA key signs JWT fixtures; decoder tests accept valid RS256
+  issuer/audience/lifetime claims and reject wrong issuer, wrong audience,
+  expiration beyond clock skew, malformed tokens, and unsupported algorithms.
+- Kafka MDC tests prove envelope identifiers are present only for the bounded
+  listener scope and previous thread context is restored.
 
 ## Financial correctness
 
@@ -73,8 +81,13 @@ distributed exactly-once transaction.
 .\mvnw.cmd spotless:apply
 .\mvnw.cmd clean verify
 docker compose config
+docker compose --profile observability config
+npx --yes @redocly/cli@2.40.0 lint contracts/openapi/*.yaml
 git diff --check
 ```
 
-CI runs the Maven verification lifecycle from a clean checkout. Coverage is a
-diagnostic; passing percentages cannot replace missing invariant/failure tests.
+CI runs the Maven verification lifecycle from a clean checkout, creates a
+CycloneDX aggregate SBOM, scans committed content for secrets, analyzes Java with
+CodeQL, validates OpenAPI/AsyncAPI and Compose, and checks Prometheus rules.
+Coverage is a diagnostic; passing percentages cannot replace missing
+invariant/failure tests.

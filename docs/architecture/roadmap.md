@@ -37,6 +37,8 @@ Status: complete after the full E2E suite passes.
 
 ## Phase 4 — Security and observability
 
+Status: complete.
+
 - authentication and authorization;
 - structured JSON logging and expanded Micrometer dashboards;
 - Elasticsearch, Logstash, and Kibana;

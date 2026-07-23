@@ -134,6 +134,12 @@ delivery harmless.
 
 ## Deliberate exclusions
 
-Authentication, authorization, frontend, real notifications, external banking
-integrations, production Kafka topology, multi-region deployment, and the Elastic
-Stack remain outside Phase 3.
+Phase 4 adds operations-user authentication and authorization, Gateway rate
+limiting, structured logs, metrics, dashboards, alerts, and searchable local logs.
+These controls are operational sidecars to the workflow: Prometheus, Grafana, and
+the Elastic Stack can fail without changing account, transfer, or outbox state.
+
+Frontend, customer/account ownership authorization, real notifications, external
+banking integrations, managed secrets, hardened identity, production Kafka
+topology, TLS/mTLS, regulatory controls, and multi-region deployment remain
+outside the current portfolio scope.
