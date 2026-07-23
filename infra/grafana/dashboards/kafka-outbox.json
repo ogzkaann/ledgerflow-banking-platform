@@ -1,0 +1,134 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "editable": false,
+  "panels": [
+    {
+      "id": 1,
+      "title": "Outbox pending",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "sum by (job) (outbox_pending)",
+          "legendFormat": "{{job}}"
+        }
+      ],
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 0
+      }
+    },
+    {
+      "id": 2,
+      "title": "Outbox failed",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "sum by (job) (outbox_failed)",
+          "legendFormat": "{{job}}"
+        }
+      ],
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 0
+      }
+    },
+    {
+      "id": 3,
+      "title": "Outbox publish attempts / failures",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "sum by (job) (rate(outbox_publish_attempts_total[5m]))",
+          "legendFormat": "{{job}} attempts"
+        },
+        {
+          "expr": "sum by (job) (rate(outbox_publish_failures_total[5m]))",
+          "legendFormat": "{{job}} failures"
+        }
+      ],
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 0
+      }
+    },
+    {
+      "id": 4,
+      "title": "Kafka processed / duplicates",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "sum by (job) (rate(kafka_consumer_processed_total[5m]))",
+          "legendFormat": "{{job}} processed"
+        },
+        {
+          "expr": "sum by (job) (rate(kafka_consumer_duplicate_total[5m]))",
+          "legendFormat": "{{job}} duplicates"
+        }
+      ],
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 8
+      }
+    },
+    {
+      "id": 5,
+      "title": "Kafka listener failures",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "sum by (job) (rate(kafka_listener_failures_total[5m]))",
+          "legendFormat": "{{job}}"
+        }
+      ],
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 8
+      }
+    },
+    {
+      "id": 6,
+      "title": "DLT publications",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "sum by (job) (increase(kafka_dlt_publications_total[5m]))",
+          "legendFormat": "{{job}}"
+        }
+      ],
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 8
+      }
+    }
+  ],
+  "schemaVersion": 41,
+  "tags": [
+    "ledgerflow",
+    "kafka",
+    "outbox"
+  ],
+  "templating": {
+    "list": []
+  },
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "title": "Kafka and Outbox",
+  "uid": "ledgerflow-kafka-outbox",
+  "version": 1
+}

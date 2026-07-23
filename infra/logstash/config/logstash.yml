@@ -1,0 +1,9 @@
+api.http.host: 0.0.0.0
+pipeline.ecs_compatibility: v8
+pipeline.workers: 1
+pipeline.batch.size: 50
+queue.type: persisted
+queue.max_bytes: 256mb
+dead_letter_queue.enable: true
+log.level: info
+xpack.monitoring.enabled: false

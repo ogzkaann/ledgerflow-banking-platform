@@ -122,6 +122,194 @@ services:
             --partitions 3 \
             --replication-factor 1
         done
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.7.0
+    command: ["start-dev", "--import-realm"]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN_USERNAME:-ledgerflow-admin}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-ledgerflow-admin-local-only}
+      KC_HEALTH_ENABLED: "true"
+      KC_METRICS_ENABLED: "true"
+      KC_HOSTNAME: ${KEYCLOAK_PUBLIC_URL:-http://localhost:8090}
+      KC_HTTP_ENABLED: "true"
+      LEDGERFLOW_OPS_CLI_SECRET: ${LEDGERFLOW_OPS_CLI_SECRET:-ledgerflow-ops-local-only}
+      LEDGERFLOW_OPERATOR_CLI_SECRET: ${LEDGERFLOW_OPERATOR_CLI_SECRET:-ledgerflow-operator-local-only}
+      LEDGERFLOW_AUDITOR_CLI_SECRET: ${LEDGERFLOW_AUDITOR_CLI_SECRET:-ledgerflow-auditor-local-only}
+    ports:
+      - "${KEYCLOAK_PORT:-8090}:8080"
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "exec 3<>/dev/tcp/127.0.0.1/9000; printf 'GET /health/ready HTTP/1.1\\r\\nhost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3; grep -q '200 OK' <&3",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+    volumes:
+      - ./infra/keycloak/ledgerflow-realm.json:/opt/keycloak/data/import/ledgerflow-realm.json:ro
+      - ledgerflow-keycloak-data:/opt/keycloak/data
+  prometheus:
+    profiles: ["observability"]
+    image: prom/prometheus:v3.13.1
+    depends_on:
+      keycloak:
+        condition: service_healthy
+    environment:
+      GATEWAY_PORT: ${GATEWAY_PORT:-8080}
+      ACCOUNT_SERVICE_PORT: ${ACCOUNT_SERVICE_PORT:-8081}
+      TRANSFER_SERVICE_PORT: ${TRANSFER_SERVICE_PORT:-8082}
+      RISK_SERVICE_PORT: ${RISK_SERVICE_PORT:-8083}
+      NOTIFICATION_SERVICE_PORT: ${NOTIFICATION_SERVICE_PORT:-8084}
+      OPS_CLIENT_SECRET: ${LEDGERFLOW_OPS_CLI_SECRET:-ledgerflow-ops-local-only}
+    entrypoint: ["/bin/sh", "-ec"]
+    command:
+      - |
+        sed \
+          -e "s/@GATEWAY_PORT@/$${GATEWAY_PORT}/g" \
+          -e "s/@ACCOUNT_PORT@/$${ACCOUNT_SERVICE_PORT}/g" \
+          -e "s/@TRANSFER_PORT@/$${TRANSFER_SERVICE_PORT}/g" \
+          -e "s/@RISK_PORT@/$${RISK_SERVICE_PORT}/g" \
+          -e "s/@NOTIFICATION_PORT@/$${NOTIFICATION_SERVICE_PORT}/g" \
+          -e "s/@OPS_SECRET@/$${OPS_CLIENT_SECRET}/g" \
+          /etc/prometheus/prometheus.yml.template > /tmp/prometheus.yml
+        exec /bin/prometheus \
+          --config.file=/tmp/prometheus.yml \
+          --storage.tsdb.path=/prometheus \
+          --storage.tsdb.retention.time=${PROMETHEUS_RETENTION:-7d} \
+          --web.enable-lifecycle
+    ports:
+      - "${PROMETHEUS_PORT:-9091}:9090"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:9090/-/ready >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+    volumes:
+      - ./infra/prometheus/prometheus.yml.template:/etc/prometheus/prometheus.yml.template:ro
+      - ./infra/prometheus/rules:/etc/prometheus/rules:ro
+      - ledgerflow-prometheus-data:/prometheus
+  grafana:
+    profiles: ["observability"]
+    image: grafana/grafana:13.0.2
+    depends_on:
+      prometheus:
+        condition: service_healthy
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-ledgerflow-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-ledgerflow-grafana-local-only}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_SERVER_ROOT_URL: ${GRAFANA_PUBLIC_URL:-http://localhost:3000}
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/api/health >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 15s
+    volumes:
+      - ./infra/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./infra/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - ledgerflow-grafana-data:/var/lib/grafana
+  elasticsearch:
+    profiles: ["observability"]
+    image: docker.elastic.co/elasticsearch/elasticsearch:9.3.6
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: "true"
+      xpack.security.http.ssl.enabled: "false"
+      ELASTIC_PASSWORD: ${ELASTIC_PASSWORD:-ledgerflow-elastic-local-only}
+      ES_JAVA_OPTS: ${ELASTIC_JAVA_OPTS:--Xms512m -Xmx512m}
+    ports:
+      - "${ELASTICSEARCH_PORT:-9200}:9200"
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "curl --silent --fail --user elastic:$${ELASTIC_PASSWORD} http://localhost:9200/_cluster/health >/dev/null",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 40s
+    volumes:
+      - ledgerflow-elasticsearch-data:/usr/share/elasticsearch/data
+  elastic-setup:
+    profiles: ["observability"]
+    image: docker.elastic.co/elasticsearch/elasticsearch:9.3.6
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    environment:
+      ELASTIC_PASSWORD: ${ELASTIC_PASSWORD:-ledgerflow-elastic-local-only}
+      KIBANA_SYSTEM_PASSWORD: ${KIBANA_SYSTEM_PASSWORD:-ledgerflow-kibana-local-only}
+      LOGSTASH_PASSWORD: ${LOGSTASH_PASSWORD:-ledgerflow-logstash-local-only}
+    entrypoint: ["/bin/bash", "/setup/setup.sh"]
+    volumes:
+      - ./infra/elasticsearch:/setup:ro
+  logstash:
+    profiles: ["observability"]
+    image: docker.elastic.co/logstash/logstash:9.3.6
+    depends_on:
+      elastic-setup:
+        condition: service_completed_successfully
+    environment:
+      ELASTIC_USER: ledgerflow_logstash
+      ELASTIC_PASSWORD: ${LOGSTASH_PASSWORD:-ledgerflow-logstash-local-only}
+      LS_JAVA_OPTS: ${LOGSTASH_JAVA_OPTS:--Xms256m -Xmx256m}
+    ports:
+      - "${LOGSTASH_API_PORT:-9600}:9600"
+    healthcheck:
+      test: ["CMD-SHELL", "curl --silent --fail http://localhost:9600/_node/pipelines >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+    volumes:
+      - ./infra/logstash/config/logstash.yml:/usr/share/logstash/config/logstash.yml:ro
+      - ./infra/logstash/pipeline:/usr/share/logstash/pipeline:ro
+      - ./logs:/var/log/ledgerflow:ro
+      - ledgerflow-logstash-data:/usr/share/logstash/data
+  kibana:
+    profiles: ["observability"]
+    image: docker.elastic.co/kibana/kibana:9.3.6
+    depends_on:
+      elastic-setup:
+        condition: service_completed_successfully
+    environment:
+      ELASTICSEARCH_HOSTS: '["http://elasticsearch:9200"]'
+      ELASTICSEARCH_USERNAME: kibana_system
+      ELASTICSEARCH_PASSWORD: ${KIBANA_SYSTEM_PASSWORD:-ledgerflow-kibana-local-only}
+      XPACK_SECURITY_ENCRYPTIONKEY: ${KIBANA_SECURITY_KEY:-ledgerflow-kibana-security-key-local-only-32}
+      XPACK_ENCRYPTEDSAVEDOBJECTS_ENCRYPTIONKEY: ${KIBANA_SAVED_OBJECTS_KEY:-ledgerflow-saved-objects-key-local-only-32}
+      XPACK_REPORTING_ENCRYPTIONKEY: ${KIBANA_REPORTING_KEY:-ledgerflow-reporting-key-local-only-32}
+    ports:
+      - "${KIBANA_PORT:-5601}:5601"
+    healthcheck:
+      test: ["CMD-SHELL", "curl --silent --fail http://localhost:5601/api/status >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 40s
+    volumes:
+      - ledgerflow-kibana-data:/usr/share/kibana/data
+  kibana-setup:
+    profiles: ["observability"]
+    image: docker.elastic.co/elasticsearch/elasticsearch:9.3.6
+    depends_on:
+      kibana:
+        condition: service_healthy
+    environment:
+      ELASTIC_PASSWORD: ${ELASTIC_PASSWORD:-ledgerflow-elastic-local-only}
+    entrypoint: ["/bin/bash", "/setup/setup.sh"]
+    volumes:
+      - ./infra/kibana:/setup:ro
 
 volumes:
   ledgerflow-account-postgres-data:
@@ -129,3 +317,9 @@ volumes:
   ledgerflow-risk-postgres-data:
   ledgerflow-notification-postgres-data:
   ledgerflow-kafka-data:
+  ledgerflow-keycloak-data:
+  ledgerflow-prometheus-data:
+  ledgerflow-grafana-data:
+  ledgerflow-elasticsearch-data:
+  ledgerflow-logstash-data:
+  ledgerflow-kibana-data:

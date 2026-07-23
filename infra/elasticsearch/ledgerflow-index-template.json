@@ -1,0 +1,71 @@
+{
+  "index_patterns": [
+    "ledgerflow-logs-*"
+  ],
+  "priority": 200,
+  "template": {
+    "settings": {
+      "number_of_shards": 1,
+      "number_of_replicas": 0
+    },
+    "mappings": {
+      "dynamic": true,
+      "properties": {
+        "@timestamp": {
+          "type": "date"
+        },
+        "service": {
+          "properties": {
+            "name": {
+              "type": "keyword"
+            },
+            "environment": {
+              "type": "keyword"
+            }
+          }
+        },
+        "log": {
+          "properties": {
+            "level": {
+              "type": "keyword"
+            },
+            "logger": {
+              "type": "keyword",
+              "ignore_above": 512
+            }
+          }
+        },
+        "correlationId": {
+          "type": "keyword",
+          "ignore_above": 128
+        },
+        "transferId": {
+          "type": "keyword",
+          "ignore_above": 64
+        },
+        "eventId": {
+          "type": "keyword",
+          "ignore_above": 64
+        },
+        "eventType": {
+          "type": "keyword",
+          "ignore_above": 160
+        },
+        "causationId": {
+          "type": "keyword",
+          "ignore_above": 128
+        },
+        "exceptionType": {
+          "type": "keyword",
+          "ignore_above": 256
+        },
+        "message": {
+          "type": "match_only_text"
+        }
+      }
+    }
+  },
+  "_meta": {
+    "description": "LedgerFlow ECS application logs; local/demo retention is operator-managed"
+  }
+}

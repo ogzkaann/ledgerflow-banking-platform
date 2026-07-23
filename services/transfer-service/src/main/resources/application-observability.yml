@@ -1,0 +1,21 @@
+logging:
+  file:
+    name: ${LEDGERFLOW_LOG_DIR:logs}/transfer-service.json
+  structured:
+    format:
+      console: ecs
+      file: ecs
+    ecs:
+      service:
+        name: transfer-service
+        environment: ${LEDGERFLOW_ENVIRONMENT:local}
+    json:
+      stacktrace:
+        root: first
+        max-length: 8192
+        max-throwable-depth: 30
+  logback:
+    rollingpolicy:
+      max-file-size: 20MB
+      max-history: 7
+      total-size-cap: 250MB

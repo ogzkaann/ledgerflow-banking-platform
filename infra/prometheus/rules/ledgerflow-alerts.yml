@@ -1,0 +1,104 @@
+groups:
+  - name: ledgerflow-platform
+    rules:
+      - alert: ServiceDown
+        expr: up{job=~"api-gateway|account-service|transfer-service|risk-service|notification-service"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "LedgerFlow service {{ $labels.job }} is unavailable"
+
+      - alert: OutboxBacklogGrowing
+        expr: sum by (job) (outbox_pending) > 10
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Outbox backlog is growing for {{ $labels.job }}"
+
+      - alert: OutboxFailedEvents
+        expr: sum by (job) (outbox_failed) > 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Failed outbox rows exist for {{ $labels.job }}"
+
+      - alert: HighHttpErrorRate
+        expr: |
+          sum by (job) (rate(http_server_requests_seconds_count{status=~"5.."}[5m]))
+          /
+          clamp_min(sum by (job) (rate(http_server_requests_seconds_count[5m])), 0.001)
+          > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "HTTP 5xx rate exceeds 5% for {{ $labels.job }}"
+
+      - alert: HighHttpLatency
+        expr: |
+          histogram_quantile(
+            0.95,
+            sum by (job, le) (rate(http_server_requests_seconds_bucket[5m]))
+          ) > 0.75
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "HTTP p95 latency exceeds 750ms for {{ $labels.job }}"
+
+      - alert: KafkaConsumerFailures
+        expr: sum by (job) (increase(kafka_listener_failures_total[5m])) > 3
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Repeated Kafka listener failures for {{ $labels.job }}"
+
+      - alert: DeadLetterMessagesDetected
+        expr: sum by (job) (increase(kafka_dlt_publications_total[5m])) > 0
+        for: 0m
+        labels:
+          severity: critical
+        annotations:
+          summary: "A message was published to a LedgerFlow DLT"
+
+      - alert: DatabasePoolExhaustion
+        expr: hikaricp_connections_active / clamp_min(hikaricp_connections_max, 1) > 0.9
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Database pool usage exceeds 90% for {{ $labels.job }}"
+
+      - alert: TransferCompletionRateDrop
+        expr: |
+          increase(transfer_accepted_total[10m]) > 5
+          and
+          increase(transfer_completed_total[10m])
+          /
+          clamp_min(increase(transfer_accepted_total[10m]), 1)
+          < 0.8
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Transfer completion ratio is below 80%"
+
+      - alert: AuthenticationFailureSpike
+        expr: sum(increase(security_authentication_failures_total[5m])) > 10
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Authentication failures exceed the demo threshold"
+
+      - alert: RateLimitSpike
+        expr: sum(increase(gateway_rate_limit_rejections_total[5m])) > 10
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Gateway rate-limit rejections exceed the demo threshold"

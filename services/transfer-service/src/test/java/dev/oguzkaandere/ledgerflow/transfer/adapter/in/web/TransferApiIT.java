@@ -2,6 +2,7 @@ package dev.oguzkaandere.ledgerflow.transfer.adapter.in.web;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.hasSize;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
@@ -19,8 +20,10 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
 @AutoConfigureMockMvc
 class TransferApiIT extends TransferIntegrationTest {
@@ -48,11 +51,11 @@ class TransferApiIT extends TransferIntegrationTest {
         assertThat(JsonPath.<String>read(body, "$.status")).isEqualTo("PENDING");
         assertThat(JsonPath.<String>read(body, "$.amount")).isEqualTo("125.50");
 
-        mockMvc.perform(get("/api/v1/transfers/{id}", id))
+        mockMvc.perform(get("/api/v1/transfers/{id}", id).with(admin()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.transferId").value(id))
                 .andExpect(jsonPath("$.status").value("PENDING"));
-        mockMvc.perform(get("/api/v1/transfers/{id}/history", id))
+        mockMvc.perform(get("/api/v1/transfers/{id}/history", id).with(admin()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", hasSize(1)))
                 .andExpect(jsonPath("$[0].fromStatus").doesNotExist())
@@ -89,6 +92,7 @@ class TransferApiIT extends TransferIntegrationTest {
     @Test
     void validatesHeadersBodyAccountsAndMissingResourcesAsProblemDetails() throws Exception {
         mockMvc.perform(post("/api/v1/transfers")
+                        .with(admin())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(REQUEST))
                 .andExpect(status().isBadRequest())
@@ -104,10 +108,11 @@ class TransferApiIT extends TransferIntegrationTest {
         create("bad-money", REQUEST.replace("125.50", "0.001"), null, 422);
         create("bad-currency", REQUEST.replace("EUR", "CHF"), null, 422);
 
-        mockMvc.perform(get("/api/v1/transfers/00000000-0000-0000-0000-000000000000"))
+        mockMvc.perform(get("/api/v1/transfers/00000000-0000-0000-0000-000000000000")
+                        .with(admin()))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.title").value("Transfer not found"));
-        mockMvc.perform(get("/api/v1/transfers/not-a-uuid"))
+        mockMvc.perform(get("/api/v1/transfers/not-a-uuid").with(admin()))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.title").value("Malformed request"));
     }
@@ -186,6 +191,7 @@ class TransferApiIT extends TransferIntegrationTest {
 
     private MvcResult create(String key, String body, String correlation, int expectedStatus) throws Exception {
         var builder = post("/api/v1/transfers")
+                .with(admin())
                 .header("Idempotency-Key", key)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(body);
@@ -197,10 +203,27 @@ class TransferApiIT extends TransferIntegrationTest {
 
     private MvcResult createWithoutExpectation(String key, String body) throws Exception {
         return mockMvc.perform(post("/api/v1/transfers")
+                        .with(admin())
                         .header("Idempotency-Key", key)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
                 .andReturn();
+    }
+
+    @Test
+    void enforcesDirectServiceAuthenticationAndWriteRole() throws Exception {
+        mockMvc.perform(get("/api/v1/transfers/00000000-0000-0000-0000-000000000000"))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(post("/api/v1/transfers")
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ledgerflow-auditor")))
+                        .header("Idempotency-Key", "auditor-write")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(REQUEST))
+                .andExpect(status().isForbidden());
+    }
+
+    private static RequestPostProcessor admin() {
+        return jwt().authorities(new SimpleGrantedAuthority("ROLE_ledgerflow-admin"));
     }
 
     private void assertCounts(int transfers, int history, int idempotency, int outbox) {

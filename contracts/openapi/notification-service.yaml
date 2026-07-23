@@ -1,0 +1,128 @@
+openapi: 3.1.0
+info:
+  title: LedgerFlow Notification Service API
+  version: 1.0.0
+  license:
+    name: MIT
+    identifier: MIT
+  description: >-
+    Local/demo inspection API for durable terminal transfer notifications. It
+    does not deliver email, SMS, or push messages.
+servers:
+  - url: http://localhost:8084
+security:
+  - ledgerflowOidc: []
+paths:
+  /api/v1/notifications:
+    get:
+      operationId: listTransferNotifications
+      summary: Retrieve terminal notifications for a transfer
+      x-required-roles: [ledgerflow-operator, ledgerflow-auditor, ledgerflow-admin]
+      parameters:
+        - name: transferId
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Terminal notifications, empty when none exists
+          headers:
+            X-Correlation-Id:
+              $ref: '#/components/headers/CorrelationId'
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Notification'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+components:
+  securitySchemes:
+    ledgerflowOidc:
+      type: openIdConnect
+      openIdConnectUrl: http://localhost:8090/realms/ledgerflow/.well-known/openid-configuration
+  headers:
+    CorrelationId:
+      description: Trusted request correlation identifier
+      schema:
+        type: string
+        maxLength: 64
+  responses:
+    Unauthorized:
+      description: JWT is absent or fails signature, issuer, lifetime, algorithm, or audience validation
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    Forbidden:
+      description: Authenticated principal lacks a required LedgerFlow role
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    RateLimited:
+      description: API Gateway rate limit exceeded
+      headers:
+        Retry-After:
+          schema:
+            type: integer
+            minimum: 1
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+  schemas:
+    Notification:
+      type: object
+      required:
+        - notificationId
+        - transferId
+        - eventId
+        - type
+        - finalTransferStatus
+        - correlationId
+        - messageTemplateKey
+        - createdAt
+      properties:
+        notificationId:
+          type: string
+          format: uuid
+        transferId:
+          type: string
+          format: uuid
+        eventId:
+          type: string
+          format: uuid
+        type:
+          type: string
+          enum: [TRANSFER_COMPLETED, TRANSFER_REJECTED]
+        finalTransferStatus:
+          type: string
+          enum: [COMPLETED, REJECTED]
+        correlationId:
+          type: string
+        messageTemplateKey:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+    Problem:
+      type: object
+      required: [type, title, status]
+      properties:
+        type:
+          type: string
+          format: uri-reference
+        title:
+          type: string
+        status:
+          type: integer
+          minimum: 400
+          maximum: 599

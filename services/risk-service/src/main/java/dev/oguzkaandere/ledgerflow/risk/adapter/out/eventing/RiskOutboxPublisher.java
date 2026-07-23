@@ -1,5 +1,8 @@
 package dev.oguzkaandere.ledgerflow.risk.adapter.out.eventing;
 
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
 import java.sql.Timestamp;
 import java.time.Duration;
 import java.time.Instant;
@@ -22,16 +25,23 @@ public class RiskOutboxPublisher {
     private final KafkaTemplate<String, String> kafka;
     private final int batchSize;
     private final Duration acknowledgementTimeout;
+    private final Counter publishAttempts;
+    private final Counter publishFailures;
+    private final Timer publishLatency;
 
     public RiskOutboxPublisher(
             JdbcTemplate jdbc,
             KafkaTemplate<String, String> kafka,
+            MeterRegistry meters,
             @Value("${ledgerflow.outbox.batch-size:50}") int batchSize,
             @Value("${ledgerflow.outbox.ack-timeout:10s}") Duration acknowledgementTimeout) {
         this.jdbc = jdbc;
         this.kafka = kafka;
         this.batchSize = batchSize;
         this.acknowledgementTimeout = acknowledgementTimeout;
+        this.publishAttempts = meters.counter("outbox.publish.attempts", "service", "risk-service");
+        this.publishFailures = meters.counter("outbox.publish.failures", "service", "risk-service");
+        this.publishLatency = meters.timer("outbox.publish.latency", "service", "risk-service");
     }
 
     @Scheduled(fixedDelayString = "${ledgerflow.outbox.poll-interval:500ms}")
@@ -53,6 +63,8 @@ public class RiskOutboxPublisher {
                         result.getString("payload")),
                 batchSize);
         for (OutboxRow row : rows) {
+            long started = System.nanoTime();
+            publishAttempts.increment();
             try {
                 kafka.send("ledgerflow.risk.events.v1", row.aggregateId().toString(), row.payload())
                         .get(acknowledgementTimeout.toMillis(), TimeUnit.MILLISECONDS);
@@ -66,6 +78,7 @@ public class RiskOutboxPublisher {
                         row.eventType(),
                         row.aggregateId());
             } catch (Exception exception) {
+                publishFailures.increment();
                 jdbc.update("""
                         UPDATE outbox_events SET status='FAILED',published_at=NULL,
                             publish_attempt_count=publish_attempt_count+1 WHERE event_id=?
@@ -76,6 +89,8 @@ public class RiskOutboxPublisher {
                         row.eventType(),
                         row.aggregateId(),
                         exception.getClass().getSimpleName());
+            } finally {
+                publishLatency.record(System.nanoTime() - started, TimeUnit.NANOSECONDS);
             }
         }
     }

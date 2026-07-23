@@ -1,0 +1,190 @@
+{
+  "realm": "ledgerflow",
+  "displayName": "LedgerFlow Operations",
+  "enabled": true,
+  "sslRequired": "external",
+  "registrationAllowed": false,
+  "registrationEmailAsUsername": false,
+  "rememberMe": false,
+  "verifyEmail": false,
+  "loginWithEmailAllowed": false,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": false,
+  "editUsernameAllowed": false,
+  "bruteForceProtected": true,
+  "accessTokenLifespan": 300,
+  "ssoSessionIdleTimeout": 1800,
+  "ssoSessionMaxLifespan": 36000,
+  "roles": {
+    "realm": [
+      {
+        "name": "ledgerflow-operator",
+        "description": "Creates and reads operational accounts and transfers"
+      },
+      {
+        "name": "ledgerflow-auditor",
+        "description": "Reads accounts, transfers, ledgers, histories, and notifications"
+      },
+      {
+        "name": "ledgerflow-admin",
+        "description": "Performs operational and protected administrative actions"
+      }
+    ]
+  },
+  "clientScopes": [
+    {
+      "name": "ledgerflow-audience",
+      "description": "Adds the LedgerFlow resource-server audience",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "true",
+        "display.on.consent.screen": "false"
+      },
+      "protocolMappers": [
+        {
+          "name": "ledgerflow-api-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.custom.audience": "ledgerflow-api",
+            "access.token.claim": "true",
+            "id.token.claim": "false",
+            "introspection.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "name": "ledgerflow-roles",
+      "description": "Adds effective LedgerFlow realm roles to access tokens",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "false",
+        "display.on.consent.screen": "false"
+      },
+      "protocolMappers": [
+        {
+          "name": "ledgerflow-realm-roles",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-realm-role-mapper",
+          "consentRequired": false,
+          "config": {
+            "user.attribute": "foo",
+            "introspection.token.claim": "true",
+            "access.token.claim": "true",
+            "claim.name": "realm_access.roles",
+            "jsonType.label": "String",
+            "multivalued": "true"
+          }
+        }
+      ]
+    }
+  ],
+  "clients": [
+    {
+      "clientId": "ledgerflow-spa",
+      "name": "LedgerFlow future operations console",
+      "enabled": true,
+      "publicClient": true,
+      "clientAuthenticatorType": "client-secret",
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "fullScopeAllowed": false,
+      "frontchannelLogout": true,
+      "redirectUris": [
+        "http://localhost:5173/oidc/callback"
+      ],
+      "webOrigins": [
+        "http://localhost:5173"
+      ],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "http://localhost:5173/"
+      },
+      "defaultClientScopes": [
+        "ledgerflow-audience",
+        "ledgerflow-roles"
+      ]
+    },
+    {
+      "clientId": "ledgerflow-ops-cli",
+      "name": "LedgerFlow local administrative CLI",
+      "enabled": true,
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "${LEDGERFLOW_OPS_CLI_SECRET}",
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "fullScopeAllowed": true,
+      "defaultClientScopes": [
+        "ledgerflow-audience",
+        "ledgerflow-roles"
+      ]
+    },
+    {
+      "clientId": "ledgerflow-operator-cli",
+      "name": "LedgerFlow local operator verification CLI",
+      "enabled": true,
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "${LEDGERFLOW_OPERATOR_CLI_SECRET}",
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "fullScopeAllowed": true,
+      "defaultClientScopes": [
+        "ledgerflow-audience",
+        "ledgerflow-roles"
+      ]
+    },
+    {
+      "clientId": "ledgerflow-auditor-cli",
+      "name": "LedgerFlow local auditor verification CLI",
+      "enabled": true,
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "${LEDGERFLOW_AUDITOR_CLI_SECRET}",
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "fullScopeAllowed": true,
+      "defaultClientScopes": [
+        "ledgerflow-audience",
+        "ledgerflow-roles"
+      ]
+    }
+  ],
+  "users": [
+    {
+      "username": "service-account-ledgerflow-ops-cli",
+      "enabled": true,
+      "serviceAccountClientId": "ledgerflow-ops-cli",
+      "realmRoles": [
+        "ledgerflow-admin"
+      ]
+    },
+    {
+      "username": "service-account-ledgerflow-operator-cli",
+      "enabled": true,
+      "serviceAccountClientId": "ledgerflow-operator-cli",
+      "realmRoles": [
+        "ledgerflow-operator"
+      ]
+    },
+    {
+      "username": "service-account-ledgerflow-auditor-cli",
+      "enabled": true,
+      "serviceAccountClientId": "ledgerflow-auditor-cli",
+      "realmRoles": [
+        "ledgerflow-auditor"
+      ]
+    }
+  ]
+}

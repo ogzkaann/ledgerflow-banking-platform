@@ -1,5 +1,6 @@
 package dev.oguzkaandere.ledgerflow.risk.adapter.in.kafka;
 
+import io.micrometer.core.instrument.MeterRegistry;
 import org.apache.kafka.common.TopicPartition;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -11,15 +12,20 @@ import org.springframework.kafka.support.ExponentialBackOffWithMaxRetries;
 @Configuration
 class KafkaFailureConfiguration {
     @Bean
-    DefaultErrorHandler riskKafkaErrorHandler(KafkaTemplate<String, String> kafka) {
-        var recoverer = new DeadLetterPublishingRecoverer(
-                kafka, (record, exception) -> new TopicPartition(dlt(record.topic()), record.partition()));
+    DefaultErrorHandler riskKafkaErrorHandler(KafkaTemplate<String, String> kafka, MeterRegistry meters) {
+        var recoverer = new DeadLetterPublishingRecoverer(kafka, (record, exception) -> {
+            meters.counter("kafka.dlt.publications", "service", "risk-service").increment();
+            return new TopicPartition(dlt(record.topic()), record.partition());
+        });
         recoverer.setFailIfSendResultIsError(true);
         var backoff = new ExponentialBackOffWithMaxRetries(2);
         backoff.setInitialInterval(1000);
         backoff.setMultiplier(2);
         backoff.setMaxInterval(4000);
         var handler = new DefaultErrorHandler(recoverer, backoff);
+        handler.setRetryListeners((record, exception, deliveryAttempt) -> meters.counter(
+                        "kafka.listener.failures", "service", "risk-service")
+                .increment());
         handler.addNotRetryableExceptions(IllegalArgumentException.class);
         handler.setCommitRecovered(true);
         return handler;

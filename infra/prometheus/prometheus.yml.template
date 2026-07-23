@@ -1,0 +1,40 @@
+global:
+  scrape_interval: 10s
+  evaluation_interval: 10s
+
+rule_files:
+  - /etc/prometheus/rules/*.yml
+
+scrape_configs:
+  - job_name: api-gateway
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ["host.docker.internal:@GATEWAY_PORT@"]
+    oauth2: &ledgerflow_oauth
+      client_id: ledgerflow-ops-cli
+      client_secret: "@OPS_SECRET@"
+      token_url: http://keycloak:8080/realms/ledgerflow/protocol/openid-connect/token
+
+  - job_name: account-service
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ["host.docker.internal:@ACCOUNT_PORT@"]
+    oauth2: *ledgerflow_oauth
+
+  - job_name: transfer-service
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ["host.docker.internal:@TRANSFER_PORT@"]
+    oauth2: *ledgerflow_oauth
+
+  - job_name: risk-service
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ["host.docker.internal:@RISK_PORT@"]
+    oauth2: *ledgerflow_oauth
+
+  - job_name: notification-service
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ["host.docker.internal:@NOTIFICATION_PORT@"]
+    oauth2: *ledgerflow_oauth

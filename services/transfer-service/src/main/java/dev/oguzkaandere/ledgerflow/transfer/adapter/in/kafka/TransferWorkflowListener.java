@@ -21,7 +21,8 @@ class TransferWorkflowListener {
             groupId = "${ledgerflow.kafka.groups.transfer-account:transfer-account-workflow-v1}",
             autoStartup = "${ledgerflow.kafka.listener-enabled:true}")
     void receiveAccountEvent(String json) {
-        workflow.handle(mapper.readValue(json, WorkflowEnvelope.class));
+        WorkflowEnvelope envelope = mapper.readValue(json, WorkflowEnvelope.class);
+        KafkaMdc.run(envelope, () -> workflow.handle(envelope));
     }
 
     @KafkaListener(
@@ -29,6 +30,7 @@ class TransferWorkflowListener {
             groupId = "${ledgerflow.kafka.groups.transfer-risk:transfer-risk-workflow-v1}",
             autoStartup = "${ledgerflow.kafka.listener-enabled:true}")
     void receiveRiskEvent(String json) {
-        workflow.handle(mapper.readValue(json, WorkflowEnvelope.class));
+        WorkflowEnvelope envelope = mapper.readValue(json, WorkflowEnvelope.class);
+        KafkaMdc.run(envelope, () -> workflow.handle(envelope));
     }
 }

@@ -32,6 +32,10 @@ class RiskWorkflowListener {
             autoStartup = "${ledgerflow.kafka.listener-enabled:true}")
     void receive(String json) {
         WorkflowEnvelope envelope = mapper.readValue(json, WorkflowEnvelope.class);
+        KafkaMdc.run(envelope, () -> dispatch(envelope));
+    }
+
+    private void dispatch(WorkflowEnvelope envelope) {
         if (FUNDS_RESERVED.equals(envelope.eventType())) {
             workflow.handle(envelope);
         } else if (KNOWN_UNCONSUMED_TYPES.contains(envelope.eventType())) {

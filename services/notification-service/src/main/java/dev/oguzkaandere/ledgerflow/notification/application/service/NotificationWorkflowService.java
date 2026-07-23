@@ -83,6 +83,8 @@ public class NotificationWorkflowService {
                 Timestamp.from(now));
         metrics.counter("kafka.consumer.processed", "service", "notification-service")
                 .increment();
+        metrics.counter("notifications.recorded", "service", "notification-service")
+                .increment();
         LOGGER.info(
                 "notification_recorded service=notification-service eventId={} eventType={} transferId={} correlationId={}",
                 envelope.eventId(),

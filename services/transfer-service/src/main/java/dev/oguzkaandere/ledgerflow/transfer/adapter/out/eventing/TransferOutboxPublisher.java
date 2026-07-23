@@ -1,5 +1,8 @@
 package dev.oguzkaandere.ledgerflow.transfer.adapter.out.eventing;
 
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
 import java.sql.Timestamp;
 import java.time.Duration;
 import java.time.Instant;
@@ -28,16 +31,23 @@ public class TransferOutboxPublisher {
     private final KafkaTemplate<String, String> kafka;
     private final int batchSize;
     private final Duration acknowledgementTimeout;
+    private final Counter publishAttempts;
+    private final Counter publishFailures;
+    private final Timer publishLatency;
 
     public TransferOutboxPublisher(
             JdbcTemplate jdbc,
             KafkaTemplate<String, String> kafka,
+            MeterRegistry meters,
             @Value("${ledgerflow.outbox.batch-size:50}") int batchSize,
             @Value("${ledgerflow.outbox.ack-timeout:10s}") Duration acknowledgementTimeout) {
         this.jdbc = jdbc;
         this.kafka = kafka;
         this.batchSize = batchSize;
         this.acknowledgementTimeout = acknowledgementTimeout;
+        this.publishAttempts = meters.counter("outbox.publish.attempts", "service", "transfer-service");
+        this.publishFailures = meters.counter("outbox.publish.failures", "service", "transfer-service");
+        this.publishLatency = meters.timer("outbox.publish.latency", "service", "transfer-service");
     }
 
     @Scheduled(fixedDelayString = "${ledgerflow.outbox.poll-interval:500ms}")
@@ -59,6 +69,8 @@ public class TransferOutboxPublisher {
                         result.getString("payload")),
                 batchSize);
         for (OutboxRow row : rows) {
+            long started = System.nanoTime();
+            publishAttempts.increment();
             String topic = COMMAND_TYPES.contains(row.eventType())
                     ? "ledgerflow.transfer.commands.v1"
                     : "ledgerflow.transfer.events.v1";
@@ -76,6 +88,7 @@ public class TransferOutboxPublisher {
                         row.eventType(),
                         row.aggregateId());
             } catch (Exception exception) {
+                publishFailures.increment();
                 jdbc.update("""
                         UPDATE outbox_events
                         SET status='FAILED', published_at=NULL, publish_attempt_count=publish_attempt_count+1
@@ -87,6 +100,8 @@ public class TransferOutboxPublisher {
                         row.eventType(),
                         row.aggregateId(),
                         exception.getClass().getSimpleName());
+            } finally {
+                publishLatency.record(System.nanoTime() - started, TimeUnit.NANOSECONDS);
             }
         }
     }

@@ -2,6 +2,9 @@ openapi: 3.1.0
 info:
   title: LedgerFlow Transfer Service API
   version: 1.0.0
+  license:
+    name: MIT
+    identifier: MIT
   description: |
     Accepts idempotent transfer workflow requests. A 202 response means the request
     and its Kafka event intent are durably PENDING; account validation, reservation,
@@ -9,10 +12,14 @@ info:
     operations to observe completion or rejection.
 servers:
   - url: http://localhost:8082
+security:
+  - ledgerflowOidc: []
 paths:
   /api/v1/transfers:
     post:
+      operationId: createTransfer
       summary: Accept a transfer workflow request
+      x-required-roles: [ledgerflow-operator, ledgerflow-admin]
       parameters:
         - $ref: "#/components/parameters/IdempotencyKey"
         - $ref: "#/components/parameters/CorrelationId"
@@ -59,11 +66,19 @@ paths:
           $ref: "#/components/responses/Unprocessable"
         "500":
           $ref: "#/components/responses/InternalError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "429":
+          $ref: "#/components/responses/RateLimited"
   /api/v1/transfers/{transferId}:
     parameters:
       - $ref: "#/components/parameters/TransferId"
     get:
+      operationId: getTransfer
       summary: Retrieve current transfer state
+      x-required-roles: [ledgerflow-operator, ledgerflow-auditor, ledgerflow-admin]
       responses:
         "200":
           description: Transfer representation
@@ -77,11 +92,19 @@ paths:
           $ref: "#/components/responses/NotFound"
         "500":
           $ref: "#/components/responses/InternalError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "429":
+          $ref: "#/components/responses/RateLimited"
   /api/v1/transfers/{transferId}/history:
     parameters:
       - $ref: "#/components/parameters/TransferId"
     get:
+      operationId: getTransferHistory
       summary: Retrieve bounded state history oldest first
+      x-required-roles: [ledgerflow-operator, ledgerflow-auditor, ledgerflow-admin]
       responses:
         "200":
           description: Immutable transition history
@@ -97,7 +120,20 @@ paths:
           $ref: "#/components/responses/NotFound"
         "500":
           $ref: "#/components/responses/InternalError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "429":
+          $ref: "#/components/responses/RateLimited"
 components:
+  securitySchemes:
+    ledgerflowOidc:
+      type: openIdConnect
+      description: >-
+        Internal operations OIDC. Runtime issuer and audience are configured with
+        OIDC_ISSUER_URI and OIDC_AUDIENCE; the local realm uses ledgerflow-api.
+      openIdConnectUrl: http://localhost:8090/realms/ledgerflow/.well-known/openid-configuration
   parameters:
     IdempotencyKey:
       name: Idempotency-Key
@@ -246,6 +282,38 @@ components:
               message:
                 type: string
   responses:
+    Unauthorized:
+      description: Missing, malformed, expired, wrong-issuer, wrong-audience, or unsupported JWT
+      headers:
+        X-Correlation-Id:
+          $ref: "#/components/headers/CorrelationId"
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/ProblemDetail"
+    Forbidden:
+      description: Authenticated principal lacks a required LedgerFlow role
+      headers:
+        X-Correlation-Id:
+          $ref: "#/components/headers/CorrelationId"
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/ProblemDetail"
+    RateLimited:
+      description: API Gateway rate limit exceeded
+      headers:
+        Retry-After:
+          description: Suggested delay in seconds before retry
+          schema:
+            type: integer
+            minimum: 1
+        X-Correlation-Id:
+          $ref: "#/components/headers/CorrelationId"
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/ProblemDetail"
     BadRequest:
       description: Malformed body, identifier, or required header
       content:
@@ -276,3 +344,9 @@ components:
         application/problem+json:
           schema:
             $ref: "#/components/schemas/ProblemDetail"
+  headers:
+    CorrelationId:
+      description: Trusted request correlation identifier
+      schema:
+        type: string
+        maxLength: 64

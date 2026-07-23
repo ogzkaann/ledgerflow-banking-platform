@@ -1,0 +1,145 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "editable": false,
+  "panels": [
+    {
+      "id": 1,
+      "title": "Accepted transfers",
+      "type": "stat",
+      "targets": [
+        {
+          "expr": "sum(transfer_accepted_total)"
+        }
+      ],
+      "gridPos": {
+        "h": 7,
+        "w": 4,
+        "x": 0,
+        "y": 0
+      }
+    },
+    {
+      "id": 2,
+      "title": "Completed transfers",
+      "type": "stat",
+      "targets": [
+        {
+          "expr": "sum(transfer_completed_total)"
+        }
+      ],
+      "gridPos": {
+        "h": 7,
+        "w": 4,
+        "x": 4,
+        "y": 0
+      }
+    },
+    {
+      "id": 3,
+      "title": "Rejected transfers",
+      "type": "stat",
+      "targets": [
+        {
+          "expr": "sum(transfer_rejected_total)"
+        }
+      ],
+      "gridPos": {
+        "h": 7,
+        "w": 4,
+        "x": 8,
+        "y": 0
+      }
+    },
+    {
+      "id": 4,
+      "title": "Reservations created / released",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "sum(rate(reservation_created_total[5m]))",
+          "legendFormat": "created"
+        },
+        {
+          "expr": "sum(rate(reservation_released_total[5m]))",
+          "legendFormat": "released"
+        }
+      ],
+      "gridPos": {
+        "h": 7,
+        "w": 6,
+        "x": 12,
+        "y": 0
+      }
+    },
+    {
+      "id": 5,
+      "title": "Risk decisions",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "sum(rate(risk_approved_total[5m]))",
+          "legendFormat": "approved"
+        },
+        {
+          "expr": "sum(rate(risk_rejected_total[5m]))",
+          "legendFormat": "rejected"
+        }
+      ],
+      "gridPos": {
+        "h": 7,
+        "w": 6,
+        "x": 18,
+        "y": 0
+      }
+    },
+    {
+      "id": 6,
+      "title": "Notifications recorded",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "sum(rate(notifications_recorded_total[5m]))"
+        }
+      ],
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 7
+      }
+    },
+    {
+      "id": 7,
+      "title": "Completion ratio",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "sum(increase(transfer_completed_total[10m])) / clamp_min(sum(increase(transfer_accepted_total[10m])), 1)"
+        }
+      ],
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 7
+      }
+    }
+  ],
+  "schemaVersion": 41,
+  "tags": [
+    "ledgerflow",
+    "workflow"
+  ],
+  "templating": {
+    "list": []
+  },
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "title": "Transfer Workflow",
+  "uid": "ledgerflow-transfer-workflow",
+  "version": 1
+}

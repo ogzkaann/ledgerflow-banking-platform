@@ -2,6 +2,9 @@ openapi: 3.1.0
 info:
   title: LedgerFlow Account Service API
   version: 1.0.0
+  license:
+    name: MIT
+    identifier: MIT
   description: >-
     Creates and reads single-currency accounts and their immutable ledger history.
     The test-funding operation is synthetic and is exposed only when the local or
@@ -9,8 +12,11 @@ info:
 servers:
   - url: http://localhost:8081
     description: Local Account Service
+security:
+  - ledgerflowOidc: []
 tags:
   - name: Accounts
+    description: Account lifecycle and immutable ledger queries
   - name: Synthetic funding
     description: Local/test-only development capability
 paths:
@@ -19,6 +25,7 @@ paths:
       tags: [Accounts]
       operationId: createAccount
       summary: Create an active account
+      x-required-roles: [ledgerflow-operator, ledgerflow-admin]
       requestBody:
         required: true
         content:
@@ -45,6 +52,12 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '422':
           $ref: '#/components/responses/UnsupportedCurrency'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/RateLimited'
   /api/v1/accounts/{accountId}:
     parameters:
       - $ref: '#/components/parameters/AccountId'
@@ -52,6 +65,7 @@ paths:
       tags: [Accounts]
       operationId: getAccount
       summary: Retrieve current account state
+      x-required-roles: [ledgerflow-operator, ledgerflow-auditor, ledgerflow-admin]
       responses:
         '200':
           description: Current account state
@@ -63,6 +77,12 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '404':
           $ref: '#/components/responses/NotFound'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/RateLimited'
   /api/v1/accounts/{accountId}/ledger:
     parameters:
       - $ref: '#/components/parameters/AccountId'
@@ -87,6 +107,7 @@ paths:
       tags: [Accounts]
       operationId: listLedgerEntries
       summary: List immutable ledger entries newest first
+      x-required-roles: [ledgerflow-operator, ledgerflow-auditor, ledgerflow-admin]
       responses:
         '200':
           description: Requested ledger page
@@ -98,6 +119,12 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '404':
           $ref: '#/components/responses/NotFound'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/RateLimited'
   /api/v1/accounts/{accountId}/test-funding:
     parameters:
       - $ref: '#/components/parameters/AccountId'
@@ -105,6 +132,7 @@ paths:
       tags: [Synthetic funding]
       operationId: addSyntheticTestFunding
       summary: Add a synthetic credit in local or test profiles
+      x-required-roles: [ledgerflow-admin]
       description: >-
         Creates an immutable credit entry and updates the available balance in one
         PostgreSQL transaction. This route does not exist outside the local and test
@@ -137,7 +165,20 @@ paths:
                 $ref: '#/components/schemas/Problem'
         '422':
           $ref: '#/components/responses/UnsupportedCurrency'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/RateLimited'
 components:
+  securitySchemes:
+    ledgerflowOidc:
+      type: openIdConnect
+      description: >-
+        Internal operations OIDC. Runtime issuer and audience are configured with
+        OIDC_ISSUER_URI and OIDC_AUDIENCE; the local realm uses ledgerflow-api.
+      openIdConnectUrl: http://localhost:8090/realms/ledgerflow/.well-known/openid-configuration
   parameters:
     AccountId:
       name: accountId
@@ -147,6 +188,38 @@ components:
         type: string
         format: uuid
   responses:
+    Unauthorized:
+      description: Missing, malformed, expired, wrong-issuer, wrong-audience, or unsupported JWT
+      headers:
+        X-Correlation-Id:
+          $ref: '#/components/headers/CorrelationId'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    Forbidden:
+      description: Authenticated principal lacks a required LedgerFlow role
+      headers:
+        X-Correlation-Id:
+          $ref: '#/components/headers/CorrelationId'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    RateLimited:
+      description: API Gateway rate limit exceeded
+      headers:
+        Retry-After:
+          description: Suggested delay in seconds before retry
+          schema:
+            type: integer
+            minimum: 1
+        X-Correlation-Id:
+          $ref: '#/components/headers/CorrelationId'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
     BadRequest:
       description: The request body, path, query parameters, or monetary value is invalid
       content:
@@ -186,6 +259,12 @@ components:
             status: 422
             detail: Currency CHF is not supported
             instance: /api/v1/accounts
+  headers:
+    CorrelationId:
+      description: Trusted request correlation identifier
+      schema:
+        type: string
+        maxLength: 64
   schemas:
     CreateAccountRequest:
       type: object

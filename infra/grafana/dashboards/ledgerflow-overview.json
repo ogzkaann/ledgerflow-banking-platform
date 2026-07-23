@@ -1,0 +1,124 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "editable": false,
+  "panels": [
+    {
+      "id": 1,
+      "title": "Service availability",
+      "type": "stat",
+      "targets": [
+        {
+          "expr": "up{job=~\"api-gateway|account-service|transfer-service|risk-service|notification-service\"}",
+          "legendFormat": "{{job}}"
+        }
+      ],
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 0
+      }
+    },
+    {
+      "id": 2,
+      "title": "HTTP requests per second",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "sum by (job) (rate(http_server_requests_seconds_count[5m]))",
+          "legendFormat": "{{job}}"
+        }
+      ],
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 0
+      }
+    },
+    {
+      "id": 3,
+      "title": "HTTP 5xx rate",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "sum by (job) (rate(http_server_requests_seconds_count{status=~\"5..\"}[5m]))",
+          "legendFormat": "{{job}}"
+        }
+      ],
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 0
+      }
+    },
+    {
+      "id": 4,
+      "title": "HTTP p95 latency",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum by (job, le) (rate(http_server_requests_seconds_bucket[5m])))",
+          "legendFormat": "{{job}}"
+        }
+      ],
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 8
+      }
+    },
+    {
+      "id": 5,
+      "title": "JVM heap used",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "sum by (job) (jvm_memory_used_bytes{area=\"heap\"})",
+          "legendFormat": "{{job}}"
+        }
+      ],
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 8
+      }
+    },
+    {
+      "id": 6,
+      "title": "Database pool utilization",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "hikaricp_connections_active / clamp_min(hikaricp_connections_max, 1)",
+          "legendFormat": "{{job}}"
+        }
+      ],
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 8
+      }
+    }
+  ],
+  "schemaVersion": 41,
+  "tags": [
+    "ledgerflow"
+  ],
+  "templating": {
+    "list": []
+  },
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "title": "LedgerFlow Overview",
+  "uid": "ledgerflow-overview",
+  "version": 1
+}

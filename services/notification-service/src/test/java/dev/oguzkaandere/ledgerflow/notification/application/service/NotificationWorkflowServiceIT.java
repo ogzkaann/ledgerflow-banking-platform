@@ -2,6 +2,7 @@ package dev.oguzkaandere.ledgerflow.notification.application.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -14,6 +15,7 @@ import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.web.servlet.MockMvc;
 import tools.jackson.databind.ObjectMapper;
 
@@ -39,10 +41,15 @@ class NotificationWorkflowServiceIT extends NotificationIntegrationTest {
                 .isEqualTo(1);
         assertThat(jdbc.queryForObject("SELECT count(*) FROM processed_events", Integer.class))
                 .isEqualTo(1);
-        mockMvc.perform(get("/api/v1/notifications").queryParam("transferId", transferId.toString()))
+        mockMvc.perform(get("/api/v1/notifications")
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ledgerflow-auditor")))
+                        .queryParam("transferId", transferId.toString()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].finalTransferStatus").value("COMPLETED"))
                 .andExpect(jsonPath("$[0].messageTemplateKey").value("transfer-completed-v1"));
+
+        mockMvc.perform(get("/api/v1/notifications").queryParam("transferId", transferId.toString()))
+                .andExpect(status().isUnauthorized());
     }
 
     @Test

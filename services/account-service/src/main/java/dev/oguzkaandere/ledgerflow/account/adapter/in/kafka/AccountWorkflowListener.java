@@ -21,6 +21,7 @@ class AccountWorkflowListener {
             groupId = "${ledgerflow.kafka.groups.account:account-transfer-workflow-v1}",
             autoStartup = "${ledgerflow.kafka.listener-enabled:true}")
     void receive(String json) {
-        workflow.handle(mapper.readValue(json, WorkflowEnvelope.class));
+        WorkflowEnvelope envelope = mapper.readValue(json, WorkflowEnvelope.class);
+        KafkaMdc.run(envelope, () -> workflow.handle(envelope));
     }
 }

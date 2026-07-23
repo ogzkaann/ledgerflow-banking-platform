@@ -14,6 +14,7 @@ import dev.oguzkaandere.ledgerflow.transfer.domain.port.IdempotencyRepository;
 import dev.oguzkaandere.ledgerflow.transfer.domain.port.OutboxRepository;
 import dev.oguzkaandere.ledgerflow.transfer.domain.port.TransferHistoryRepository;
 import dev.oguzkaandere.ledgerflow.transfer.domain.port.TransferRepository;
+import io.micrometer.core.instrument.MeterRegistry;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
@@ -37,6 +38,7 @@ public class TransferApplicationService {
     private final IdempotencyCache cache;
     private final Clock clock;
     private final Supplier<UUID> uuidGenerator;
+    private final MeterRegistry metrics;
 
     public TransferApplicationService(
             TransferRepository transfers,
@@ -45,7 +47,8 @@ public class TransferApplicationService {
             OutboxRepository outbox,
             IdempotencyCache cache,
             Clock clock,
-            Supplier<UUID> uuidGenerator) {
+            Supplier<UUID> uuidGenerator,
+            MeterRegistry metrics) {
         this.transfers = transfers;
         this.history = history;
         this.idempotency = idempotency;
@@ -53,6 +56,7 @@ public class TransferApplicationService {
         this.cache = cache;
         this.clock = clock;
         this.uuidGenerator = uuidGenerator;
+        this.metrics = metrics;
     }
 
     @Transactional
@@ -99,6 +103,7 @@ public class TransferApplicationService {
                 eventId, transfer, now, command.correlationId().value()));
 
         cacheAfterCommit(scope, command, fingerprint, transfer.id());
+        metrics.counter("transfer.accepted", "service", "transfer-service").increment();
         LOGGER.info(
                 "transfer_accepted transferId={} correlationId={} status={} eventId={} idempotencyToken={}",
                 transfer.id(),
