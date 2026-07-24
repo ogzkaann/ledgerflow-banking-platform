@@ -50,3 +50,9 @@ E2E suite proves one notification after completed and compensated workflows.
 Prometheus records notification, Kafka listener, and DLT counters alongside
 HTTP/JVM/Hikari metrics; the `observability` profile writes ECS JSON with bounded
 correlation and workflow MDC.
+
+Phase 5 evolves the local inspection API to a stable paginated representation:
+`GET /api/v1/notifications?page=0&size=20&transferId={uuid}&type={type}`.
+Transfer ID and terminal type filters are optional and bounded. Newest-first
+ordering and supporting indexes make it suitable for the console without
+changing the fact that records are demo persistence, not real message delivery.

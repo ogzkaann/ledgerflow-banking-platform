@@ -112,3 +112,9 @@ rejections, duplicate events, settlement, release, ledger uniqueness,
 reconciliation, transaction rollback, constraints, Flyway/JPA validation, and the
 original account API. The full Kafka workflow test additionally proves completed
 and compensated flows against real Kafka, four PostgreSQL databases, and Redis.
+
+Phase 5 adds `GET /api/v1/accounts` with bounded pagination plus exact status and
+currency filters. Results are stable newest-first DTOs; JPA entities and arbitrary
+query expressions are never exposed. Targeted indexes cover the operational sort
+and filters. Operator, auditor, and admin roles may read; existing write rules are
+unchanged.

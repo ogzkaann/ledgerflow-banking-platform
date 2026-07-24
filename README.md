@@ -49,11 +49,18 @@ transfer ledger entry.
 - Java 25 LTS
 - Git
 - Docker Desktop or a compatible Docker Engine
+- Node.js 24 LTS
 
 ```powershell
 .\mvnw.cmd spotless:apply
 .\mvnw.cmd clean verify
 docker compose config
+cd apps\operations-console
+npm ci
+npm run lint
+npm run typecheck
+npm run test
+npm run build
 ```
 
 Start the complete local infrastructure:
@@ -81,6 +88,19 @@ Account Service so its synthetic funding endpoint is available, and add
 .\mvnw.cmd -pl services/api-gateway spring-boot:run
 ```
 
+Then start the browser console:
+
+```powershell
+cd apps\operations-console
+Copy-Item .env.example .env.local
+npm ci
+npm run dev
+```
+
+Open `http://localhost:5173` and sign in through Keycloak as the local
+`operator`, `auditor`, or `admin` user. Passwords come from the root `.env`; the
+idempotent `keycloak-demo-users` Compose task provisions them.
+
 See [local development](docs/development/local-development.md) for the complete
 authenticated demo procedure and environment overrides.
 
@@ -99,6 +119,8 @@ authenticated demo procedure and environment overrides.
 - [Notification Service](docs/services/notification-service.md)
 - [Phase 3 verification record](docs/development/phase3-verification.md)
 - [Phase 4 verification record](docs/development/phase4-verification.md)
+- [Operations Console](docs/frontend/operations-console.md)
+- [Phase 5 verification record](docs/development/phase5-verification.md)
 - [Authentication and authorization](docs/security/authentication-authorization.md)
 - [Threat model](docs/security/threat-model.md)
 - [Observability operations](docs/operations/observability.md)
@@ -108,9 +130,10 @@ authenticated demo procedure and environment overrides.
 
 ## Repository status
 
-Phases 0 through 4 are implemented. Phase 4 adds defense-in-depth OIDC security,
-rate limiting, structured ECS logs, protected Prometheus metrics, provisioned
-Grafana/Kibana views, alerts, runbooks, SBOM generation, secret scanning, and
-CodeQL. Production deployment, real notification delivery, customer ownership
+Phases 0 through 5 are implemented. Phase 5 adds real Keycloak browser login,
+contract-generated API clients, role-aware account/transfer/notification
+operations, history-driven transfer visualization, guided real-workflow
+scenarios, and frontend/browser CI. Production deployment, real notification
+delivery, customer ownership
 authorization, regulatory certification, external banking integrations, and
 multi-region operation remain deliberately out of scope.

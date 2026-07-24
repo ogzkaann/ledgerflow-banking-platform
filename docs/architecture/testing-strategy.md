@@ -83,11 +83,22 @@ distributed exactly-once transaction.
 docker compose config
 docker compose --profile observability config
 npx --yes @redocly/cli@2.40.0 lint contracts/openapi/*.yaml
+cd apps/operations-console
+npm ci
+npm run lint
+npm run typecheck
+npm run test
+npm run build
+npm run test:e2e
 git diff --check
 ```
 
 CI runs the Maven verification lifecycle from a clean checkout, creates a
-CycloneDX aggregate SBOM, scans committed content for secrets, analyzes Java with
-CodeQL, validates OpenAPI/AsyncAPI and Compose, and checks Prometheus rules.
+CycloneDX backend and frontend SBOMs, scans committed content for secrets,
+analyzes Java and TypeScript with CodeQL, validates OpenAPI/AsyncAPI and Compose,
+and checks Prometheus rules. A dedicated bounded workflow starts Keycloak,
+Gateway, Kafka, Redis, four PostgreSQL databases, all five applications, and
+Chromium for the real browser test. Fast CI uses MSW-shaped API fixtures but the
+completed runtime and real project never substitute them.
 Coverage is a diagnostic; passing percentages cannot replace missing
 invariant/failure tests.

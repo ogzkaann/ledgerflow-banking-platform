@@ -46,9 +46,13 @@ Status: complete.
 
 ## Phase 5 — Operations console
 
-- React account and transfer views;
-- transfer creation and status timeline;
-- failure/rejection inspection and accessible UI states.
+Status: complete after real-browser verification.
+
+- React/TypeScript account, transfer, notification, demo, and technical-proof views;
+- Keycloak Authorization Code + PKCE with operator, auditor, and admin behavior;
+- generated API clients, bounded polling, and durable-idempotency replay proof;
+- responsive WCAG-oriented states and unit, component, mocked-browser, and
+  real-stack browser CI.
 
 ## Phase 6 — Quality proof
 

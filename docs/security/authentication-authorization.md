@@ -103,3 +103,22 @@ independent of it. Backend evaluation failures increment
 Allowed origins come from `GATEWAY_CORS_ALLOWED_ORIGINS`; the local default is
 only `http://localhost:5173`. Credentials are disabled. Allowed methods and
 headers are explicit, and preflight results are cached for one hour.
+
+## Browser console
+
+`ledgerflow-spa` is a public client. It uses Authorization Code with S256 PKCE,
+has no secret, does not enable implicit flow or password grant, and redirects only
+to the configured local console callback. OIDC state and user data use
+`sessionStorage`; access tokens are never displayed, logged, or placed in
+`localStorage`.
+
+The callback restores only a relative application path. `401` responses retire
+the active UI session and require sign-in again. Realm roles map to navigation and
+action visibility, but this is not a security boundary. Every call still passes
+Gateway and downstream issuer, audience, lifetime, signature, algorithm, and role
+validation.
+
+The idempotent local `keycloak-demo-users` task provisions human `operator`,
+`auditor`, and `admin` users from environment-supplied passwords. These fake
+credentials are local/demo inputs and make no production credential-management
+claim. No password is embedded in browser assets.

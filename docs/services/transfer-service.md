@@ -98,3 +98,9 @@ durable HTTP idempotency, Redis degradation, JSONB, and outbox ordering. A real
 Kafka Testcontainer verifies initiated-event publication with the transfer key and
 database publication acknowledgement. The cross-service E2E suite proves both
 settlement and risk compensation.
+
+Phase 5 adds `GET /api/v1/transfers` with bounded pagination and filters for
+status, exact source/destination account, literal reference substring, exact
+correlation ID, and a validated creation range. Ordering is deterministically
+newest-first. PostgreSQL indexes cover operational lookup fields; the endpoint
+returns stable DTOs and does not expose persistence entities.

@@ -29,14 +29,18 @@ The POM also pins Maven Compiler 3.15.0, Enforcer 3.6.3, Surefire and Failsafe
 3.5.6, Spotless 3.8.0, Palantir Java Format 2.96.0, JaCoCo 0.8.15, and
 CycloneDX 2.9.2.
 
-## Planned frontend baseline
-
-These versions are verified targets, not claims that the corresponding infrastructure or application is present:
+## Active frontend baseline
 
 | Area | Selected version | Status |
 | --- | --- | --- |
-| React | 19.2 | Latest stable React feature release; frontend deferred |
-| Node.js | 24.18.0 LTS | Current production LTS line at verification time; frontend tooling deferred |
+| React / React DOM | 19.2.8 | Operations Console runtime |
+| Node.js | 24.18.0 LTS | Pinned through `.nvmrc` |
+| TypeScript | 5.9.3 | Strict application and browser-test type checking |
+| Vite | 8.1.5 | Development and production asset build |
+| TanStack Query | 5.101.4 | Bounded server-state caching and polling |
+| oidc-client-ts | 3.5.0 | Authorization Code + PKCE browser session |
+| openapi-typescript / openapi-fetch | 7.13.0 / 0.17.0 | Generated types and typed Gateway calls |
+| Vitest / Playwright | 4.1.10 / 1.61.1 | Unit/component and Chromium verification |
 
 Kafka's broker version is deliberately separate from the Kafka client version.
 Spring Boot selects Spring Kafka and Kafka client libraries as a coordinated set;
@@ -50,8 +54,8 @@ tests.
 - Spring Boot 4.1.0 and Spring Cloud 2025.1.2 were retained after the Spring Cloud 2025.1.2 release notes explicitly confirmed their compatibility.
 - Redis changed from 8.2 to 8.8.0. Redis 8.2 was a stable release, but it is no longer the latest stable Open Source line and the Open Source release notes do not designate it as an LTS baseline.
 - Flyway and Testcontainers are present in the two stateful implemented services and remain governed by the Spring Boot BOM.
-- Kafka 4.1.2 is now operational in Compose and Testcontainers; frontend versions
-  remain documentation-only targets.
+- Kafka 4.1.2 is operational in Compose and Testcontainers; frontend versions are
+  locked in `apps/operations-console/package-lock.json` and verified by CI.
 
 ## Primary verification sources
 

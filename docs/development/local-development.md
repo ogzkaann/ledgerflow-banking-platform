@@ -78,6 +78,36 @@ Environment-configurable upstream URLs are `ACCOUNT_SERVICE_URL`,
 Liveness and readiness are public. All business APIs require a bearer token; each
 downstream service revalidates it. Metrics and info require admin.
 
+## Run the Operations Console
+
+Compose also runs the idempotent `keycloak-demo-users` task. Set local-only
+passwords in the root `.env`:
+
+```text
+LEDGERFLOW_OPERATOR_PASSWORD=operator-demo-local-only
+LEDGERFLOW_AUDITOR_PASSWORD=auditor-demo-local-only
+LEDGERFLOW_ADMIN_PASSWORD=admin-demo-local-only
+```
+
+Then start Vite:
+
+```powershell
+cd apps\operations-console
+Copy-Item .env.example .env.local
+npm ci
+npm run dev
+```
+
+Open `http://localhost:5173`. The public `ledgerflow-spa` client redirects to
+Keycloak on 8090 and returns to `/oidc/callback` with Authorization Code + S256
+PKCE. It has no secret and no password grant. The browser session is scoped to
+`sessionStorage`.
+
+Use `operator` for account/transfer creation, `auditor` to verify read-only
+behavior, and `admin` for local/test funding and Demo Lab. The console talks only
+to the Gateway on 8080. See the
+[Operations Console guide](../frontend/operations-console.md).
+
 ## Manual happy-path demo
 
 Obtain an admin token from the local confidential verification client:

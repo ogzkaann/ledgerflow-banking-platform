@@ -139,7 +139,12 @@ limiting, structured logs, metrics, dashboards, alerts, and searchable local log
 These controls are operational sidecars to the workflow: Prometheus, Grafana, and
 the Elastic Stack can fail without changing account, transfer, or outbox state.
 
-Frontend, customer/account ownership authorization, real notifications, external
-banking integrations, managed secrets, hardened identity, production Kafka
+Phase 5 adds a React Operations Console as an untrusted public OIDC client. It
+uses the Gateway only, renders service-owned read models, and orchestrates demos
+without owning business state. UI role checks improve usability; Gateway and
+service checks remain the authorization boundary.
+
+Customer/account ownership authorization, real notifications, external banking
+integrations, managed secrets, hardened production identity, production Kafka
 topology, TLS/mTLS, regulatory controls, and multi-region deployment remain
 outside the current portfolio scope.
