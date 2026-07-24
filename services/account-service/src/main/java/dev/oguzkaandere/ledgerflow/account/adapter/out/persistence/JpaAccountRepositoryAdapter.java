@@ -2,8 +2,15 @@ package dev.oguzkaandere.ledgerflow.account.adapter.out.persistence;
 
 import dev.oguzkaandere.ledgerflow.account.domain.model.Account;
 import dev.oguzkaandere.ledgerflow.account.domain.model.AccountId;
+import dev.oguzkaandere.ledgerflow.account.domain.model.AccountPage;
+import dev.oguzkaandere.ledgerflow.account.domain.model.AccountSearchCriteria;
 import dev.oguzkaandere.ledgerflow.account.domain.port.AccountRepository;
+import jakarta.persistence.criteria.Predicate;
+import java.util.ArrayList;
 import java.util.Optional;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Repository;
 
 @Repository
@@ -34,5 +41,27 @@ class JpaAccountRepositoryAdapter implements AccountRepository {
     @Override
     public Optional<Account> findByIdForUpdate(AccountId accountId) {
         return repository.findByIdForUpdate(accountId.value()).map(AccountJpaEntity::toDomain);
+    }
+
+    @Override
+    public AccountPage findPage(AccountSearchCriteria criteria) {
+        Specification<AccountJpaEntity> specification = (root, query, builder) -> {
+            var predicates = new ArrayList<Predicate>();
+            if (criteria.status() != null) {
+                predicates.add(builder.equal(root.get("status"), criteria.status()));
+            }
+            if (criteria.currency() != null) {
+                predicates.add(builder.equal(root.get("currency"), criteria.currency()));
+            }
+            return builder.and(predicates.toArray(Predicate[]::new));
+        };
+        var sort = Sort.by(Sort.Order.desc("createdAt"), Sort.Order.desc("id"));
+        var result = repository.findAll(specification, PageRequest.of(criteria.page(), criteria.size(), sort));
+        return new AccountPage(
+                result.getContent().stream().map(AccountJpaEntity::toDomain).toList(),
+                result.getNumber(),
+                result.getSize(),
+                result.getTotalElements(),
+                result.getTotalPages());
     }
 }

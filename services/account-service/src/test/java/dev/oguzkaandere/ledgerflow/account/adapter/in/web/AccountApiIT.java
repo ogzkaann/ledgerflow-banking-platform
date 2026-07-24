@@ -140,6 +140,46 @@ class AccountApiIT extends PostgresIntegrationTest {
                 .andExpect(jsonPath("$.title").value("Request validation failed"));
     }
 
+    @Test
+    void listsAccountsWithStablePaginationAndBoundedFilters() throws Exception {
+        String firstEur = createAccount("operations-eur-1", "EUR");
+        String usd = createAccount("operations-usd", "USD");
+        String secondEur = createAccount("operations-eur-2", "EUR");
+        jdbcTemplate.update(
+                "UPDATE accounts SET created_at=?, updated_at=? WHERE id=?::uuid",
+                Timestamp.from(Instant.parse("2026-07-24T10:00:01Z")),
+                Timestamp.from(Instant.parse("2026-07-24T10:00:01Z")),
+                firstEur);
+        jdbcTemplate.update(
+                "UPDATE accounts SET created_at=?, updated_at=? WHERE id=?::uuid",
+                Timestamp.from(Instant.parse("2026-07-24T10:00:02Z")),
+                Timestamp.from(Instant.parse("2026-07-24T10:00:02Z")),
+                usd);
+        jdbcTemplate.update(
+                "UPDATE accounts SET created_at=?, updated_at=? WHERE id=?::uuid",
+                Timestamp.from(Instant.parse("2026-07-24T10:00:03Z")),
+                Timestamp.from(Instant.parse("2026-07-24T10:00:03Z")),
+                secondEur);
+
+        mockMvc.perform(get("/api/v1/accounts")
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ledgerflow-auditor")))
+                        .queryParam("page", "0")
+                        .queryParam("size", "1")
+                        .queryParam("status", "ACTIVE")
+                        .queryParam("currency", "EUR"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content", hasSize(1)))
+                .andExpect(jsonPath("$.content[0].accountId").value(secondEur))
+                .andExpect(jsonPath("$.page").value(0))
+                .andExpect(jsonPath("$.size").value(1))
+                .andExpect(jsonPath("$.totalElements").value(2))
+                .andExpect(jsonPath("$.totalPages").value(2));
+
+        mockMvc.perform(get("/api/v1/accounts").with(admin()).queryParam("size", "101"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.title").value("Request validation failed"));
+    }
+
     private String createAccount(String ownerReference, String currency) throws Exception {
         String response = mockMvc.perform(post("/api/v1/accounts")
                         .with(admin())

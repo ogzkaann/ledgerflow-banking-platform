@@ -21,6 +21,50 @@ tags:
     description: Local/test-only development capability
 paths:
   /api/v1/accounts:
+    get:
+      tags: [Accounts]
+      operationId: listAccounts
+      summary: List accounts with bounded operational filters
+      x-required-roles: [ledgerflow-operator, ledgerflow-auditor, ledgerflow-admin]
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+        - name: size
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [ACTIVE, FROZEN, CLOSED]
+        - name: currency
+          in: query
+          schema:
+            type: string
+            enum: [EUR, USD, GBP]
+      responses:
+        '200':
+          description: Account page ordered by creation time and account ID, newest first
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccountPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/RateLimited'
     post:
       tags: [Accounts]
       operationId: createAccount
@@ -344,6 +388,28 @@ components:
         version: 0
         createdAt: '2026-07-18T12:00:00Z'
         updatedAt: '2026-07-18T12:00:00Z'
+    AccountPage:
+      type: object
+      required: [content, page, size, totalElements, totalPages]
+      properties:
+        content:
+          type: array
+          items:
+            $ref: '#/components/schemas/Account'
+        page:
+          type: integer
+          minimum: 0
+        size:
+          type: integer
+          minimum: 1
+          maximum: 100
+        totalElements:
+          type: integer
+          format: int64
+          minimum: 0
+        totalPages:
+          type: integer
+          minimum: 0
     LedgerEntry:
       type: object
       required: [ledgerEntryId, accountId, type, amount, currency, reference, createdAt]

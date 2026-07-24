@@ -1,11 +1,13 @@
 package dev.oguzkaandere.ledgerflow.account.adapter.in.web;
 
+import dev.oguzkaandere.ledgerflow.account.adapter.in.web.dto.AccountPageResponse;
 import dev.oguzkaandere.ledgerflow.account.adapter.in.web.dto.AccountResponse;
 import dev.oguzkaandere.ledgerflow.account.adapter.in.web.dto.FundingResponse;
 import dev.oguzkaandere.ledgerflow.account.adapter.in.web.dto.LedgerEntryResponse;
 import dev.oguzkaandere.ledgerflow.account.adapter.in.web.dto.LedgerPageResponse;
 import dev.oguzkaandere.ledgerflow.account.application.service.FundingResult;
 import dev.oguzkaandere.ledgerflow.account.domain.model.Account;
+import dev.oguzkaandere.ledgerflow.account.domain.model.AccountPage;
 import dev.oguzkaandere.ledgerflow.account.domain.model.LedgerEntry;
 import dev.oguzkaandere.ledgerflow.account.domain.model.LedgerPage;
 
@@ -24,6 +26,15 @@ final class AccountWebMapper {
                 account.version(),
                 account.createdAt(),
                 account.updatedAt());
+    }
+
+    static AccountPageResponse toResponse(AccountPage page) {
+        return new AccountPageResponse(
+                page.content().stream().map(AccountWebMapper::toResponse).toList(),
+                page.page(),
+                page.size(),
+                page.totalElements(),
+                page.totalPages());
     }
 
     static LedgerEntryResponse toResponse(LedgerEntry entry) {

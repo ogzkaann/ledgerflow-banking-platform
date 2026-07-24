@@ -6,6 +6,8 @@ import dev.oguzkaandere.ledgerflow.account.domain.exception.AccountNotFoundExcep
 import dev.oguzkaandere.ledgerflow.account.domain.exception.DuplicateLedgerReferenceException;
 import dev.oguzkaandere.ledgerflow.account.domain.model.Account;
 import dev.oguzkaandere.ledgerflow.account.domain.model.AccountId;
+import dev.oguzkaandere.ledgerflow.account.domain.model.AccountPage;
+import dev.oguzkaandere.ledgerflow.account.domain.model.AccountSearchCriteria;
 import dev.oguzkaandere.ledgerflow.account.domain.model.LedgerEntry;
 import dev.oguzkaandere.ledgerflow.account.domain.model.LedgerPage;
 import dev.oguzkaandere.ledgerflow.account.domain.model.LedgerReference;
@@ -61,6 +63,11 @@ public class AccountApplicationService {
     @Transactional(readOnly = true)
     public Account getAccount(AccountId accountId) {
         return accountRepository.findById(accountId).orElseThrow(() -> new AccountNotFoundException(accountId));
+    }
+
+    @Transactional(readOnly = true)
+    public AccountPage listAccounts(AccountSearchCriteria criteria) {
+        return accountRepository.findPage(criteria);
     }
 
     @Transactional(readOnly = true)

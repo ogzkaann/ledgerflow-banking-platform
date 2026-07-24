@@ -1,5 +1,6 @@
 package dev.oguzkaandere.ledgerflow.account.adapter.in.web;
 
+import dev.oguzkaandere.ledgerflow.account.adapter.in.web.dto.AccountPageResponse;
 import dev.oguzkaandere.ledgerflow.account.adapter.in.web.dto.AccountResponse;
 import dev.oguzkaandere.ledgerflow.account.adapter.in.web.dto.CreateAccountRequest;
 import dev.oguzkaandere.ledgerflow.account.adapter.in.web.dto.LedgerPageResponse;
@@ -7,6 +8,9 @@ import dev.oguzkaandere.ledgerflow.account.application.command.CreateAccountComm
 import dev.oguzkaandere.ledgerflow.account.application.service.AccountApplicationService;
 import dev.oguzkaandere.ledgerflow.account.domain.model.Account;
 import dev.oguzkaandere.ledgerflow.account.domain.model.AccountId;
+import dev.oguzkaandere.ledgerflow.account.domain.model.AccountSearchCriteria;
+import dev.oguzkaandere.ledgerflow.account.domain.model.AccountStatus;
+import dev.oguzkaandere.ledgerflow.account.domain.model.SupportedCurrency;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -44,6 +48,16 @@ public class AccountController {
     @GetMapping("/{accountId}")
     public AccountResponse getAccount(@PathVariable UUID accountId) {
         return AccountWebMapper.toResponse(accountService.getAccount(AccountId.from(accountId)));
+    }
+
+    @GetMapping
+    public AccountPageResponse listAccounts(
+            @RequestParam(defaultValue = "0") @Min(0) int page,
+            @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size,
+            @RequestParam(required = false) AccountStatus status,
+            @RequestParam(required = false) SupportedCurrency currency) {
+        return AccountWebMapper.toResponse(
+                accountService.listAccounts(new AccountSearchCriteria(page, size, status, currency)));
     }
 
     @GetMapping("/{accountId}/ledger")
