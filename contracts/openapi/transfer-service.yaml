@@ -16,6 +16,76 @@ security:
   - ledgerflowOidc: []
 paths:
   /api/v1/transfers:
+    get:
+      operationId: listTransfers
+      summary: List transfers with bounded operational filters
+      x-required-roles: [ledgerflow-operator, ledgerflow-auditor, ledgerflow-admin]
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+        - name: size
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: status
+          in: query
+          schema:
+            $ref: "#/components/schemas/TransferStatus"
+        - name: sourceAccountId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: destinationAccountId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: reference
+          in: query
+          description: Case-insensitive literal substring, with wildcard characters escaped
+          schema:
+            type: string
+            maxLength: 100
+        - name: correlationId
+          in: query
+          schema:
+            type: string
+            maxLength: 100
+        - name: createdFrom
+          in: query
+          description: Inclusive lower creation timestamp
+          schema:
+            type: string
+            format: date-time
+        - name: createdTo
+          in: query
+          description: Inclusive upper creation timestamp
+          schema:
+            type: string
+            format: date-time
+      responses:
+        "200":
+          description: Transfer page ordered by creation time and transfer ID, newest first
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TransferPage"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "429":
+          $ref: "#/components/responses/RateLimited"
     post:
       operationId: createTransfer
       summary: Accept a transfer workflow request
@@ -220,8 +290,7 @@ components:
         reference:
           type: string
         status:
-          type: string
-          enum: [PENDING, FUNDS_RESERVED, RISK_APPROVED, SETTLING, COMPLETED, REJECTED, COMPENSATING, EXPIRED]
+          $ref: "#/components/schemas/TransferStatus"
           description: Creation returns PENDING; no public status-transition endpoint exists.
         correlationId:
           type: string
@@ -234,6 +303,31 @@ components:
         version:
           type: integer
           format: int64
+          minimum: 0
+    TransferStatus:
+      type: string
+      enum: [PENDING, FUNDS_RESERVED, RISK_APPROVED, SETTLING, COMPLETED, REJECTED, COMPENSATING, EXPIRED]
+    TransferPage:
+      type: object
+      required: [content, page, size, totalElements, totalPages]
+      properties:
+        content:
+          type: array
+          items:
+            $ref: "#/components/schemas/Transfer"
+        page:
+          type: integer
+          minimum: 0
+        size:
+          type: integer
+          minimum: 1
+          maximum: 100
+        totalElements:
+          type: integer
+          format: int64
+          minimum: 0
+        totalPages:
+          type: integer
           minimum: 0
     TransferHistory:
       type: object

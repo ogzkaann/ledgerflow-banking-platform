@@ -8,7 +8,9 @@ import dev.oguzkaandere.ledgerflow.transfer.domain.model.SupportedCurrency;
 import dev.oguzkaandere.ledgerflow.transfer.domain.model.Transfer;
 import dev.oguzkaandere.ledgerflow.transfer.domain.model.TransferId;
 import dev.oguzkaandere.ledgerflow.transfer.domain.model.TransferInitiatedEvent;
+import dev.oguzkaandere.ledgerflow.transfer.domain.model.TransferPage;
 import dev.oguzkaandere.ledgerflow.transfer.domain.model.TransferReference;
+import dev.oguzkaandere.ledgerflow.transfer.domain.model.TransferSearchCriteria;
 import dev.oguzkaandere.ledgerflow.transfer.domain.model.TransferStateTransition;
 import dev.oguzkaandere.ledgerflow.transfer.domain.model.TransferStatus;
 import dev.oguzkaandere.ledgerflow.transfer.domain.model.WorkflowOutboxEvent;
@@ -24,8 +26,10 @@ import jakarta.persistence.Id;
 import jakarta.persistence.LockModeType;
 import jakarta.persistence.Table;
 import jakarta.persistence.Version;
+import jakarta.persistence.criteria.Predicate;
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -33,7 +37,11 @@ import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -90,6 +98,46 @@ class JpaTransferPersistenceAdapter
     }
 
     @Override
+    public TransferPage findPage(TransferSearchCriteria criteria) {
+        Specification<TransferJpaEntity> specification = (root, query, builder) -> {
+            var predicates = new ArrayList<Predicate>();
+            if (criteria.status() != null) {
+                predicates.add(builder.equal(root.get("status"), criteria.status()));
+            }
+            if (criteria.sourceAccountId() != null) {
+                predicates.add(builder.equal(root.get("sourceAccountId"), criteria.sourceAccountId()));
+            }
+            if (criteria.destinationAccountId() != null) {
+                predicates.add(builder.equal(root.get("destinationAccountId"), criteria.destinationAccountId()));
+            }
+            if (criteria.reference() != null) {
+                predicates.add(builder.like(
+                        builder.lower(root.get("reference")),
+                        "%" + escapeLike(criteria.reference().toLowerCase(java.util.Locale.ROOT)) + "%",
+                        '\\'));
+            }
+            if (criteria.correlationId() != null) {
+                predicates.add(builder.equal(root.get("correlationId"), criteria.correlationId()));
+            }
+            if (criteria.createdFrom() != null) {
+                predicates.add(builder.greaterThanOrEqualTo(root.get("createdAt"), criteria.createdFrom()));
+            }
+            if (criteria.createdTo() != null) {
+                predicates.add(builder.lessThanOrEqualTo(root.get("createdAt"), criteria.createdTo()));
+            }
+            return builder.and(predicates.toArray(Predicate[]::new));
+        };
+        var sort = Sort.by(Sort.Order.desc("createdAt"), Sort.Order.desc("id"));
+        var result = transfers.findAll(specification, PageRequest.of(criteria.page(), criteria.size(), sort));
+        return new TransferPage(
+                result.getContent().stream().map(TransferJpaEntity::toDomain).toList(),
+                result.getNumber(),
+                result.getSize(),
+                result.getTotalElements(),
+                result.getTotalPages());
+    }
+
+    @Override
     public TransferStateTransition save(TransferStateTransition transition) {
         return history.saveAndFlush(TransferHistoryJpaEntity.fromDomain(transition))
                 .toDomain();
@@ -142,9 +190,14 @@ class JpaTransferPersistenceAdapter
                 event.eventId(),
                 event.eventType());
     }
+
+    private static String escapeLike(String value) {
+        return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
+    }
 }
 
-interface SpringDataTransferRepository extends JpaRepository<TransferJpaEntity, UUID> {
+interface SpringDataTransferRepository
+        extends JpaRepository<TransferJpaEntity, UUID>, JpaSpecificationExecutor<TransferJpaEntity> {
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select transfer from TransferJpaEntity transfer where transfer.id = :id")
     Optional<TransferJpaEntity> findByIdForUpdate(@Param("id") UUID id);

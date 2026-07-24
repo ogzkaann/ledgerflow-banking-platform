@@ -18,6 +18,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.HandlerMethodValidationException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 @RestControllerAdvice
@@ -46,6 +47,17 @@ class ApiExceptionHandler {
                 HttpStatus.BAD_REQUEST,
                 "Malformed request",
                 "The request contains malformed JSON or identifiers",
+                request);
+    }
+
+    @ExceptionHandler({HandlerMethodValidationException.class, IllegalArgumentException.class})
+    ProblemDetail invalidQuery(Exception exception, HttpServletRequest request) {
+        return problem(
+                HttpStatus.BAD_REQUEST,
+                "Request validation failed",
+                exception instanceof IllegalArgumentException
+                        ? exception.getMessage()
+                        : "One or more request parameters are invalid",
                 request);
     }
 

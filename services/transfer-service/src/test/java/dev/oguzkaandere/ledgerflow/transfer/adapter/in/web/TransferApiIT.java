@@ -11,6 +11,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.jayway.jsonpath.JsonPath;
 import dev.oguzkaandere.ledgerflow.transfer.support.TransferIntegrationTest;
+import java.sql.Timestamp;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -178,7 +180,7 @@ class TransferApiIT extends TransferIntegrationTest {
     void flywaySchemaValidationAndOutboxEnvelopeAreRealPostgresJsonb() throws Exception {
         create("schema-key", REQUEST, null, 202);
         assertThat(jdbc.queryForObject("SELECT count(*) FROM flyway_schema_history WHERE success", Integer.class))
-                .isEqualTo(2);
+                .isEqualTo(3);
         assertThat(jdbc.queryForObject("SELECT payload ->> 'eventType' FROM outbox_events", String.class))
                 .isEqualTo("ledgerflow.transfer.initiated.v1");
         assertThat(jdbc.queryForObject("SELECT payload #>> '{payload,amount}' FROM outbox_events", String.class))
@@ -187,6 +189,60 @@ class TransferApiIT extends TransferIntegrationTest {
                 .isEqualTo("PENDING");
         assertThat(jdbc.queryForObject("SELECT published_at IS NULL FROM outbox_events", Boolean.class))
                 .isTrue();
+    }
+
+    @Test
+    void listsTransfersNewestFirstWithBoundedOperationsFilters() throws Exception {
+        String first = JsonPath.read(
+                create(
+                                "list-first",
+                                REQUEST.replace("invoice-2026-001", "customer invoice alpha"),
+                                "list-correlation-first",
+                                202)
+                        .getResponse()
+                        .getContentAsString(),
+                "$.transferId");
+        String second = JsonPath.read(
+                create(
+                                "list-second",
+                                REQUEST.replace("invoice-2026-001", "customer invoice beta"),
+                                "list-correlation-second",
+                                202)
+                        .getResponse()
+                        .getContentAsString(),
+                "$.transferId");
+        create("list-third", REQUEST.replace("invoice-2026-001", "unrelated reference"), "list-correlation-third", 202);
+        jdbc.update(
+                "UPDATE transfers SET status='COMPLETED', created_at=?, updated_at=? WHERE id=?::uuid",
+                Timestamp.from(Instant.parse("2026-07-24T10:00:01Z")),
+                Timestamp.from(Instant.parse("2026-07-24T10:00:01Z")),
+                first);
+        jdbc.update(
+                "UPDATE transfers SET status='COMPLETED', created_at=?, updated_at=? WHERE id=?::uuid",
+                Timestamp.from(Instant.parse("2026-07-24T10:00:02Z")),
+                Timestamp.from(Instant.parse("2026-07-24T10:00:02Z")),
+                second);
+
+        mockMvc.perform(get("/api/v1/transfers")
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ledgerflow-auditor")))
+                        .queryParam("page", "0")
+                        .queryParam("size", "1")
+                        .queryParam("status", "COMPLETED")
+                        .queryParam("reference", "invoice")
+                        .queryParam("sourceAccountId", "0d17936c-05d5-45ae-9ee8-0a33f7ae8256")
+                        .queryParam("createdFrom", "2026-07-24T09:59:00Z")
+                        .queryParam("createdTo", "2026-07-24T10:01:00Z"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content", hasSize(1)))
+                .andExpect(jsonPath("$.content[0].transferId").value(second))
+                .andExpect(jsonPath("$.totalElements").value(2))
+                .andExpect(jsonPath("$.totalPages").value(2));
+
+        mockMvc.perform(get("/api/v1/transfers")
+                        .with(admin())
+                        .queryParam("createdFrom", "2026-07-25T00:00:00Z")
+                        .queryParam("createdTo", "2026-07-24T00:00:00Z"))
+                .andExpect(status().isBadRequest());
     }
 
     private MvcResult create(String key, String body, String correlation, int expectedStatus) throws Exception {

@@ -8,6 +8,8 @@ import dev.oguzkaandere.ledgerflow.transfer.domain.model.IdempotencyRecord;
 import dev.oguzkaandere.ledgerflow.transfer.domain.model.Transfer;
 import dev.oguzkaandere.ledgerflow.transfer.domain.model.TransferId;
 import dev.oguzkaandere.ledgerflow.transfer.domain.model.TransferInitiatedEvent;
+import dev.oguzkaandere.ledgerflow.transfer.domain.model.TransferPage;
+import dev.oguzkaandere.ledgerflow.transfer.domain.model.TransferSearchCriteria;
 import dev.oguzkaandere.ledgerflow.transfer.domain.model.TransferStateTransition;
 import dev.oguzkaandere.ledgerflow.transfer.domain.port.IdempotencyCache;
 import dev.oguzkaandere.ledgerflow.transfer.domain.port.IdempotencyRepository;
@@ -117,6 +119,11 @@ public class TransferApplicationService {
     @Transactional(readOnly = true)
     public Transfer getTransfer(TransferId id) {
         return transfers.findById(id).orElseThrow(() -> new TransferNotFoundException(id.toString()));
+    }
+
+    @Transactional(readOnly = true)
+    public TransferPage listTransfers(TransferSearchCriteria criteria) {
+        return transfers.findPage(criteria);
     }
 
     @Transactional(readOnly = true)

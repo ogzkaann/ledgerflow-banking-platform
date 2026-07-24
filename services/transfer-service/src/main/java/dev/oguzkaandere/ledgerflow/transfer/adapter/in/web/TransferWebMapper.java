@@ -1,8 +1,10 @@
 package dev.oguzkaandere.ledgerflow.transfer.adapter.in.web;
 
 import dev.oguzkaandere.ledgerflow.transfer.adapter.in.web.dto.TransferHistoryResponse;
+import dev.oguzkaandere.ledgerflow.transfer.adapter.in.web.dto.TransferPageResponse;
 import dev.oguzkaandere.ledgerflow.transfer.adapter.in.web.dto.TransferResponse;
 import dev.oguzkaandere.ledgerflow.transfer.domain.model.Transfer;
+import dev.oguzkaandere.ledgerflow.transfer.domain.model.TransferPage;
 import dev.oguzkaandere.ledgerflow.transfer.domain.model.TransferStateTransition;
 
 final class TransferWebMapper {
@@ -21,6 +23,15 @@ final class TransferWebMapper {
                 transfer.createdAt(),
                 transfer.updatedAt(),
                 transfer.version());
+    }
+
+    static TransferPageResponse toResponse(TransferPage page) {
+        return new TransferPageResponse(
+                page.content().stream().map(TransferWebMapper::toResponse).toList(),
+                page.page(),
+                page.size(),
+                page.totalElements(),
+                page.totalPages());
     }
 
     static TransferHistoryResponse toResponse(TransferStateTransition transition) {

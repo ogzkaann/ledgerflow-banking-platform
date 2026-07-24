@@ -2,6 +2,7 @@ package dev.oguzkaandere.ledgerflow.transfer.adapter.in.web;
 
 import dev.oguzkaandere.ledgerflow.transfer.adapter.in.web.dto.CreateTransferRequest;
 import dev.oguzkaandere.ledgerflow.transfer.adapter.in.web.dto.TransferHistoryResponse;
+import dev.oguzkaandere.ledgerflow.transfer.adapter.in.web.dto.TransferPageResponse;
 import dev.oguzkaandere.ledgerflow.transfer.adapter.in.web.dto.TransferResponse;
 import dev.oguzkaandere.ledgerflow.transfer.application.command.CreateTransferCommand;
 import dev.oguzkaandere.ledgerflow.transfer.application.result.CreateTransferResult;
@@ -13,11 +14,18 @@ import dev.oguzkaandere.ledgerflow.transfer.domain.model.Money;
 import dev.oguzkaandere.ledgerflow.transfer.domain.model.SupportedCurrency;
 import dev.oguzkaandere.ledgerflow.transfer.domain.model.TransferId;
 import dev.oguzkaandere.ledgerflow.transfer.domain.model.TransferReference;
+import dev.oguzkaandere.ledgerflow.transfer.domain.model.TransferSearchCriteria;
+import dev.oguzkaandere.ledgerflow.transfer.domain.model.TransferStatus;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import java.math.BigDecimal;
 import java.net.URI;
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
+import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.format.annotation.DateTimeFormat.ISO;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -27,6 +35,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -77,6 +86,29 @@ public class TransferController {
     @GetMapping("/{transferId}")
     TransferResponse get(@PathVariable UUID transferId) {
         return TransferWebMapper.toResponse(service.getTransfer(TransferId.from(transferId)));
+    }
+
+    @GetMapping
+    TransferPageResponse list(
+            @RequestParam(defaultValue = "0") @Min(0) int page,
+            @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size,
+            @RequestParam(required = false) TransferStatus status,
+            @RequestParam(required = false) UUID sourceAccountId,
+            @RequestParam(required = false) UUID destinationAccountId,
+            @RequestParam(required = false) String reference,
+            @RequestParam(required = false) String correlationId,
+            @RequestParam(required = false) @DateTimeFormat(iso = ISO.DATE_TIME) Instant createdFrom,
+            @RequestParam(required = false) @DateTimeFormat(iso = ISO.DATE_TIME) Instant createdTo) {
+        return TransferWebMapper.toResponse(service.listTransfers(new TransferSearchCriteria(
+                page,
+                size,
+                status,
+                sourceAccountId,
+                destinationAccountId,
+                reference,
+                correlationId,
+                createdFrom,
+                createdTo)));
     }
 
     @GetMapping("/{transferId}/history")
