@@ -40,6 +40,8 @@ coverage/
 
 # Test tooling
 allure-results/
+**/playwright-report/
+**/test-results/
 
 # Operating systems
 .DS_Store
