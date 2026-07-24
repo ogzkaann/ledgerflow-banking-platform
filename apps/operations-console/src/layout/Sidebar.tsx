@@ -31,7 +31,7 @@ interface SidebarProps {
 export function Sidebar({ open, onClose }: SidebarProps) {
   return (
     <>
-      <aside className={`sidebar ${open ? "sidebar--open" : ""}`} aria-label="Primary navigation">
+      <aside className={`sidebar ${open ? "sidebar--open" : ""}`} aria-label="Application sidebar">
         <div className="sidebar__brand">
           <span className="brand-mark" aria-hidden="true">
             LF
@@ -45,7 +45,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
             <span className="sr-only">Close navigation</span>
           </button>
         </div>
-        <nav className="sidebar__nav">
+        <nav className="sidebar__nav" aria-label="Primary navigation">
           {navigation.map(({ to, label, icon: Icon, end }) => (
             <NavLink
               key={to}

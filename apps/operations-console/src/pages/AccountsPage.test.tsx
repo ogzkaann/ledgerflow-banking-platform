@@ -4,14 +4,16 @@ import { AccountsPage } from "./AccountsPage";
 import { renderConsole } from "@/test/render";
 import { server } from "@/test/server";
 import { setMockRole } from "@/test/auth-mock";
+import { axe } from "jest-axe";
 
 describe("AccountsPage", () => {
   it("renders contract-shaped account state and admin create action", async () => {
     setMockRole("ledgerflow-admin");
-    renderConsole(<AccountsPage />, "/accounts");
+    const view = renderConsole(<AccountsPage />, "/accounts");
     expect(await screen.findByText("portfolio-source")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /create account/i })).toBeInTheDocument();
     expect(screen.getByText("EUR 1,000.00")).toBeInTheDocument();
+    expect((await axe(view.container)).violations).toEqual([]);
   });
 
   it("keeps an auditor read-only", async () => {
