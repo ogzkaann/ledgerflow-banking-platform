@@ -25,6 +25,8 @@ jobs:
     timeout-minutes: 25
     env:
       LEDGERFLOW_ADMIN_PASSWORD: admin-demo-ci-only
+      LEDGERFLOW_OPERATOR_PASSWORD: operator-demo-ci-only
+      LEDGERFLOW_AUDITOR_PASSWORD: auditor-demo-ci-only
 
     steps:
       - name: Check out repository
@@ -56,7 +58,7 @@ jobs:
       - name: Start five Java applications
         run: |
           for service in account-service transfer-service risk-service notification-service api-gateway; do
-            jar="$(find "services/${service}/target" -maxdepth 1 -name '*.jar' ! -name '*.original' | head -n 1)"
+            jar="$(find "services/${service}/target" -maxdepth 1 -name '*-exec.jar' | head -n 1)"
             nohup java -jar "${jar}" --spring.profiles.active=local > "${RUNNER_TEMP}/${service}.log" 2>&1 &
           done
           for attempt in {1..60}; do
