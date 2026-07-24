@@ -179,11 +179,10 @@ export function listNotifications(filters: NotificationFilters, signal?: AbortSi
 
 export async function getGatewayReadiness(signal?: AbortSignal): Promise<boolean> {
   try {
-    const response = await fetch(`${appConfig.apiBaseUrl}/actuator/health/readiness`, {
+    const response = await fetch(appConfig.gatewayReadinessUrl, {
       signal: signal
         ? AbortSignal.any([signal, AbortSignal.timeout(appConfig.requestTimeoutMs)])
         : AbortSignal.timeout(appConfig.requestTimeoutMs),
-      headers: { "X-Correlation-Id": crypto.randomUUID() },
     });
     return response.ok;
   } catch {

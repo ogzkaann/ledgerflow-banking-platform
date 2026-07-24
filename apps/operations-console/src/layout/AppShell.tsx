@@ -10,7 +10,11 @@ export function AppShell() {
 
   return (
     <div className="app-shell">
-      <Sidebar open={navigationOpen} onClose={() => setNavigationOpen(false)} />
+      <Sidebar
+        open={navigationOpen}
+        onClose={() => setNavigationOpen(false)}
+        showDemoLab={permissions.canFundDemo}
+      />
       <div className="app-shell__main">
         <TopBar permissions={permissions} onOpenNavigation={() => setNavigationOpen(true)} />
         <main id="main-content" className="content">

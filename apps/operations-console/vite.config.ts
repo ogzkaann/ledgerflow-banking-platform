@@ -12,6 +12,13 @@ export default defineConfig({
   server: {
     port: 5173,
     strictPort: true,
+    proxy: {
+      "/gateway-readiness": {
+        target: "http://localhost:8080",
+        changeOrigin: true,
+        rewrite: () => "/actuator/health/readiness",
+      },
+    },
   },
   preview: {
     port: 4173,

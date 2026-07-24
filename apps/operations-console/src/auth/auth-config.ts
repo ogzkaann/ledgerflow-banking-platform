@@ -21,7 +21,7 @@ export const authConfig: AuthProviderProps = {
   redirect_uri: appConfig.oidc.redirectUri,
   post_logout_redirect_uri: appConfig.oidc.postLogoutRedirectUri,
   response_type: "code",
-  scope: "openid profile email",
+  scope: "openid",
   automaticSilentRenew: true,
   monitorSession: true,
   userStore: new WebStorageStateStore({ store: window.sessionStorage }),

@@ -1,7 +1,10 @@
 import { useAuth } from "react-oidc-context";
-import { permissionsFor } from "./permissions";
+import { permissionsFor, tokenProfile } from "./permissions";
 
 export function usePermissions() {
   const auth = useAuth();
-  return permissionsFor(auth.user?.profile);
+  const profilePermissions = permissionsFor(auth.user?.profile);
+  return profilePermissions.canRead
+    ? profilePermissions
+    : permissionsFor(tokenProfile(auth.user?.access_token));
 }

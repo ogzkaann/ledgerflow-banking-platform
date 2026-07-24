@@ -129,6 +129,7 @@ export function DemoLabPage() {
         {error !== null && <ProblemPanel error={error} />}
         {result && <div className="demo-evidence">
           <div><span>Final transfer</span><StatusBadge status={result.status} /><Link to={`/transfers/${result.transferId}`}>{result.transferId}</Link></div>
+          <div><span>Correlation ID</span><code>{result.correlationId}</code></div>
           <div><span>Source final</span><strong>{formatMoney(result.source.availableBalance, result.source.currency)}</strong><Link to={`/accounts/${result.source.accountId}`}>{result.sourceLedgerCount} ledger entries</Link></div>
           <div><span>Destination final</span><strong>{formatMoney(result.destination.availableBalance, result.destination.currency)}</strong><Link to={`/accounts/${result.destination.accountId}`}>{result.destinationLedgerCount} ledger entries</Link></div>
           <div><span>Terminal records</span><strong>{result.notificationCount}</strong><Link to={`/notifications?transferId=${result.transferId}`}>Inspect notifications</Link></div>

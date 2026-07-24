@@ -1,5 +1,6 @@
 type ConfigKey =
   | "VITE_API_BASE_URL"
+  | "VITE_GATEWAY_READINESS_URL"
   | "VITE_OIDC_AUTHORITY"
   | "VITE_OIDC_CLIENT_ID"
   | "VITE_OIDC_REDIRECT_URI"
@@ -19,6 +20,7 @@ function value(name: ConfigKey, fallback: string): string {
 
 export const appConfig = {
   apiBaseUrl: value("VITE_API_BASE_URL", "http://localhost:8080"),
+  gatewayReadinessUrl: value("VITE_GATEWAY_READINESS_URL", "/gateway-readiness"),
   environment: value("VITE_ENVIRONMENT", "local"),
   enableDemoFunding: value("VITE_ENABLE_DEMO_FUNDING", "false") === "true",
   oidc: {

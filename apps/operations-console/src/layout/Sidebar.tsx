@@ -14,21 +14,23 @@ const navigation: ReadonlyArray<{
   readonly label: string;
   readonly icon: typeof Gauge;
   readonly end?: boolean;
+  readonly adminOnly?: boolean;
 }> = [
   { to: "/", label: "Overview", icon: Gauge, end: true },
   { to: "/accounts", label: "Accounts", icon: Landmark },
   { to: "/transfers", label: "Transfers", icon: Building2 },
   { to: "/notifications", label: "Notifications", icon: Bell },
-  { to: "/demo", label: "Demo Lab", icon: FlaskConical },
+  { to: "/demo", label: "Demo Lab", icon: FlaskConical, adminOnly: true },
   { to: "/system", label: "System", icon: Network },
 ];
 
 interface SidebarProps {
   readonly open: boolean;
   readonly onClose: () => void;
+  readonly showDemoLab: boolean;
 }
 
-export function Sidebar({ open, onClose }: SidebarProps) {
+export function Sidebar({ open, onClose, showDemoLab }: SidebarProps) {
   return (
     <>
       <aside className={`sidebar ${open ? "sidebar--open" : ""}`} aria-label="Application sidebar">
@@ -46,7 +48,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
           </button>
         </div>
         <nav className="sidebar__nav" aria-label="Primary navigation">
-          {navigation.map(({ to, label, icon: Icon, end }) => (
+          {navigation.filter(({ adminOnly }) => !adminOnly || showDemoLab).map(({ to, label, icon: Icon, end }) => (
             <NavLink
               key={to}
               to={to}
