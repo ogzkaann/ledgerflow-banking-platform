@@ -126,17 +126,18 @@ services:
     image: quay.io/keycloak/keycloak:26.7.0
     command: ["start-dev", "--import-realm"]
     environment:
-      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN_USERNAME:-ledgerflow-admin}
-      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-ledgerflow-admin-local-only}
+      KC_BOOTSTRAP_ADMIN_CLIENT_ID: ${KEYCLOAK_BOOTSTRAP_CLIENT_ID:-ledgerflow-bootstrap}
+      KC_BOOTSTRAP_ADMIN_CLIENT_SECRET: ${KEYCLOAK_BOOTSTRAP_CLIENT_SECRET:-ledgerflow-bootstrap-local-only}
       KC_HEALTH_ENABLED: "true"
       KC_METRICS_ENABLED: "true"
       KC_HOSTNAME: ${KEYCLOAK_PUBLIC_URL:-http://localhost:8090}
       KC_HTTP_ENABLED: "true"
+      KC_HTTP_PORT: "8090"
       LEDGERFLOW_OPS_CLI_SECRET: ${LEDGERFLOW_OPS_CLI_SECRET:-ledgerflow-ops-local-only}
       LEDGERFLOW_OPERATOR_CLI_SECRET: ${LEDGERFLOW_OPERATOR_CLI_SECRET:-ledgerflow-operator-local-only}
       LEDGERFLOW_AUDITOR_CLI_SECRET: ${LEDGERFLOW_AUDITOR_CLI_SECRET:-ledgerflow-auditor-local-only}
     ports:
-      - "${KEYCLOAK_PORT:-8090}:8080"
+      - "${KEYCLOAK_PORT:-8090}:8090"
     healthcheck:
       test:
         [
@@ -152,12 +153,14 @@ services:
       - ledgerflow-keycloak-data:/opt/keycloak/data
   keycloak-demo-users:
     image: quay.io/keycloak/keycloak:26.7.0
+    network_mode: "service:keycloak"
     depends_on:
       keycloak:
         condition: service_healthy
     environment:
-      KEYCLOAK_ADMIN_USERNAME: ${KEYCLOAK_ADMIN_USERNAME:-ledgerflow-admin}
-      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-ledgerflow-admin-local-only}
+      KEYCLOAK_SERVER_URL: http://localhost:8090
+      KEYCLOAK_BOOTSTRAP_CLIENT_ID: ${KEYCLOAK_BOOTSTRAP_CLIENT_ID:-ledgerflow-bootstrap}
+      KEYCLOAK_BOOTSTRAP_CLIENT_SECRET: ${KEYCLOAK_BOOTSTRAP_CLIENT_SECRET:-ledgerflow-bootstrap-local-only}
       LEDGERFLOW_OPERATOR_PASSWORD: ${LEDGERFLOW_OPERATOR_PASSWORD:-operator-demo-local-only}
       LEDGERFLOW_AUDITOR_PASSWORD: ${LEDGERFLOW_AUDITOR_PASSWORD:-auditor-demo-local-only}
       LEDGERFLOW_ADMIN_PASSWORD: ${LEDGERFLOW_ADMIN_PASSWORD:-admin-demo-local-only}
