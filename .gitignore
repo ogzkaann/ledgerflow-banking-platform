@@ -37,6 +37,7 @@ data/
 **/dist/
 **/.cache/
 coverage/
+*.tsbuildinfo
 
 # Test tooling
 allure-results/
