@@ -150,6 +150,20 @@ services:
     volumes:
       - ./infra/keycloak/ledgerflow-realm.json:/opt/keycloak/data/import/ledgerflow-realm.json:ro
       - ledgerflow-keycloak-data:/opt/keycloak/data
+  keycloak-demo-users:
+    image: quay.io/keycloak/keycloak:26.7.0
+    depends_on:
+      keycloak:
+        condition: service_healthy
+    environment:
+      KEYCLOAK_ADMIN_USERNAME: ${KEYCLOAK_ADMIN_USERNAME:-ledgerflow-admin}
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-ledgerflow-admin-local-only}
+      LEDGERFLOW_OPERATOR_PASSWORD: ${LEDGERFLOW_OPERATOR_PASSWORD:-operator-demo-local-only}
+      LEDGERFLOW_AUDITOR_PASSWORD: ${LEDGERFLOW_AUDITOR_PASSWORD:-auditor-demo-local-only}
+      LEDGERFLOW_ADMIN_PASSWORD: ${LEDGERFLOW_ADMIN_PASSWORD:-admin-demo-local-only}
+    entrypoint: ["/bin/bash", "/setup/setup-demo-users.sh"]
+    volumes:
+      - ./infra/keycloak/setup-demo-users.sh:/setup/setup-demo-users.sh:ro
   prometheus:
     profiles: ["observability"]
     image: prom/prometheus:v3.13.1
