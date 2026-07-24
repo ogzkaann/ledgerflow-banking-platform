@@ -2,6 +2,8 @@ package dev.oguzkaandere.ledgerflow.notification.application.service;
 
 import dev.oguzkaandere.ledgerflow.notification.application.event.WorkflowEnvelope;
 import dev.oguzkaandere.ledgerflow.notification.domain.model.Notification;
+import dev.oguzkaandere.ledgerflow.notification.domain.model.NotificationPage;
+import dev.oguzkaandere.ledgerflow.notification.domain.model.NotificationSearchCriteria;
 import dev.oguzkaandere.ledgerflow.notification.domain.model.NotificationType;
 import dev.oguzkaandere.ledgerflow.notification.domain.port.NotificationRepository;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -96,5 +98,10 @@ public class NotificationWorkflowService {
     @Transactional(readOnly = true)
     public List<Notification> findByTransferId(UUID transferId) {
         return notifications.findByTransferId(transferId);
+    }
+
+    @Transactional(readOnly = true)
+    public NotificationPage list(NotificationSearchCriteria criteria) {
+        return notifications.findPage(criteria);
     }
 }

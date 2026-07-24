@@ -19,12 +19,31 @@ paths:
       summary: Retrieve terminal notifications for a transfer
       x-required-roles: [ledgerflow-operator, ledgerflow-auditor, ledgerflow-admin]
       parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+        - name: size
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
         - name: transferId
           in: query
-          required: true
+          required: false
           schema:
             type: string
             format: uuid
+        - name: type
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [TRANSFER_COMPLETED, TRANSFER_REJECTED]
       responses:
         '200':
           description: Terminal notifications, empty when none exists
@@ -34,9 +53,9 @@ paths:
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/Notification'
+                $ref: '#/components/schemas/NotificationPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -55,6 +74,12 @@ components:
         type: string
         maxLength: 64
   responses:
+    BadRequest:
+      description: A query parameter is malformed or outside its allowed bound
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
     Unauthorized:
       description: JWT is absent or fails signature, issuer, lifetime, algorithm, or audience validation
       content:
@@ -113,6 +138,28 @@ components:
         createdAt:
           type: string
           format: date-time
+    NotificationPage:
+      type: object
+      required: [content, page, size, totalElements, totalPages]
+      properties:
+        content:
+          type: array
+          items:
+            $ref: '#/components/schemas/Notification'
+        page:
+          type: integer
+          minimum: 0
+        size:
+          type: integer
+          minimum: 1
+          maximum: 100
+        totalElements:
+          type: integer
+          format: int64
+          minimum: 0
+        totalPages:
+          type: integer
+          minimum: 0
     Problem:
       type: object
       required: [type, title, status]

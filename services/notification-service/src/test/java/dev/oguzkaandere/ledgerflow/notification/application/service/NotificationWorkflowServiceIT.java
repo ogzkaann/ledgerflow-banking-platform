@@ -45,8 +45,9 @@ class NotificationWorkflowServiceIT extends NotificationIntegrationTest {
                         .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ledgerflow-auditor")))
                         .queryParam("transferId", transferId.toString()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].finalTransferStatus").value("COMPLETED"))
-                .andExpect(jsonPath("$[0].messageTemplateKey").value("transfer-completed-v1"));
+                .andExpect(jsonPath("$.content[0].finalTransferStatus").value("COMPLETED"))
+                .andExpect(jsonPath("$.content[0].messageTemplateKey").value("transfer-completed-v1"))
+                .andExpect(jsonPath("$.totalElements").value(1));
 
         mockMvc.perform(get("/api/v1/notifications").queryParam("transferId", transferId.toString()))
                 .andExpect(status().isUnauthorized());
@@ -60,6 +61,38 @@ class NotificationWorkflowServiceIT extends NotificationIntegrationTest {
                 .isEqualTo("TRANSFER_REJECTED");
         assertThat(jdbc.queryForObject("SELECT final_transfer_status FROM notifications", String.class))
                 .isEqualTo("REJECTED");
+    }
+
+    @Test
+    void listsNotificationsNewestFirstWithTransferAndTypeFilters() throws Exception {
+        UUID completedTransfer = UUID.randomUUID();
+        UUID rejectedTransfer = UUID.randomUUID();
+        workflow.handle(terminal(NotificationWorkflowService.COMPLETED, completedTransfer));
+        workflow.handle(terminal(NotificationWorkflowService.REJECTED, rejectedTransfer));
+        jdbc.update(
+                "UPDATE notifications SET created_at=? WHERE transfer_id=?",
+                java.sql.Timestamp.from(Instant.parse("2026-07-24T10:00:01Z")),
+                completedTransfer);
+        jdbc.update(
+                "UPDATE notifications SET created_at=? WHERE transfer_id=?",
+                java.sql.Timestamp.from(Instant.parse("2026-07-24T10:00:02Z")),
+                rejectedTransfer);
+
+        mockMvc.perform(get("/api/v1/notifications")
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ledgerflow-auditor")))
+                        .queryParam("page", "0")
+                        .queryParam("size", "1")
+                        .queryParam("type", "TRANSFER_REJECTED"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].transferId").value(rejectedTransfer.toString()))
+                .andExpect(jsonPath("$.content[0].type").value("TRANSFER_REJECTED"))
+                .andExpect(jsonPath("$.totalElements").value(1));
+
+        mockMvc.perform(get("/api/v1/notifications")
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ledgerflow-auditor")))
+                        .queryParam("transferId", completedTransfer.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].type").value("TRANSFER_COMPLETED"));
     }
 
     @Test

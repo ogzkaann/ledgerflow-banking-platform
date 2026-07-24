@@ -9,6 +9,6 @@ class NotificationServiceApplicationTests extends NotificationIntegrationTest {
     @Test
     void contextLoadsWithFlywayAndJpaValidation() {
         assertThat(jdbc.queryForObject("SELECT count(*) FROM flyway_schema_history WHERE success", Integer.class))
-                .isEqualTo(1);
+                .isEqualTo(2);
     }
 }
