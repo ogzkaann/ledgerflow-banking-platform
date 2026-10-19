@@ -1,0 +1,45 @@
+name: Temporary frontend dependency refresh
+on:
+  push:
+    branches: [fix/security-audit-2026-10-19]
+    paths:
+      - .github/workflows/temporary-dependency-refresh.yml
+      - apps/operations-console/package.json
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: true
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: apps/operations-console/package-lock.json
+      - name: Refresh and verify frontend lockfile
+        working-directory: apps/operations-console
+        run: |
+          npm install --package-lock-only --ignore-scripts --no-audit
+          npm audit fix --package-lock-only --ignore-scripts
+          npm ci
+          npm audit --audit-level=high
+          npm run lint
+          npm run typecheck
+          npm test
+          npm run build
+          npm sbom --sbom-format cyclonedx > frontend-sbom.json
+      - name: Commit verified lockfile to fix branch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apps/operations-console/package-lock.json
+          if ! git diff --cached --quiet; then
+            git commit -m "fix(deps): refresh audited frontend lockfile"
+            git push origin HEAD:fix/security-audit-2026-10-19
+          fi
